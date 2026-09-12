@@ -7,4 +7,6 @@ out
 __pycache__
 *.pyc
 .venv
+dist
+build_tmp
 .claude/scheduled_tasks.lock

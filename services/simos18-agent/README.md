@@ -115,6 +115,92 @@ Como não roda na Vercel/Next.js, esse serviço precisa de um host próprio com
 Python (uma VPS pequena, ou até uma máquina da própria oficina) — o site só
 precisa saber a URL e o `API_KEY` pra chamá-lo.
 
+## Janela (gui/) — o .exe da Área de Trabalho
+
+`gui/app.py` é uma janela Tkinter simples que fala com o serviço local por
+HTTP (mesma API acima) — escolher bin, identificar, marcar patch(es) com
+nome amigável (`patch_labels.py`), aplicar, e baixar o XDF compatível.
+
+Pra gerar de novo o `TruckPerformance-Multimapa.exe` depois de editar
+`gui/app.py` (troque `$base` se o projeto estiver em outra pasta):
+
+```powershell
+$base = "C:\Users\Avell\OneDrive\Desktop\truck-performance\services\simos18-agent"
+cd $base
+.\.venv\Scripts\python.exe -m PyInstaller --onefile --windowed --name "TruckPerformance-Multimapa" `
+  --icon "$base\gui\icon.ico" `
+  --add-data "$base\gui\icon.ico;." `
+  --add-data "$base\gui\icon_header.png;." `
+  --distpath dist --workpath build_tmp --specpath build_tmp "$base\gui\app.py"
+
+Copy-Item "dist\TruckPerformance-Multimapa.exe" -Destination "$env:USERPROFILE\OneDrive\Desktop\TruckPerformance-Multimapa.exe" -Force
+```
+
+Nota: `--add-data`/`--icon` com caminho relativo dá erro quando
+`--specpath` é uma subpasta (o PyInstaller resolve relativo à pasta do
+`.spec`, não à pasta atual) — por isso os caminhos acima são absolutos.
+
+Pra trocar o ícone: edite `gui/make_icon.py` (desenha com Pillow) e rode
+`.\.venv\Scripts\python.exe gui\make_icon.py` — regenera `gui/icon.ico` e
+`gui/icon_header.png`, depois recompile o `.exe` com o comando acima.
+
+## Simulador de troca de mapa (seção 6 da janela)
+
+Não existe emulador confiável do processador da ECU (TriCore) pra "rodar" o
+código de verdade fora do hardware — nem a própria comunidade do BinToolz
+tem isso. O que dá pra fazer sem hardware é uma **calculadora**: ela lê os
+valores reais de calibração do arquivo (via `gui/map_switch_data.py`,
+endereços tirados do XDF) e simula a decisão:
+
+- Timeout, RPM mínimo, pedal mínimo e RPM alvo pós-troca (lidos de verdade
+  do arquivo, categoria "Map Switching" do XDF).
+- Limitador de RPM de cada mapa (1 a 4 — Mapa 5 não foi localizado nesta
+  versão do XDF, então não incluí pra não inventar valor).
+- Com RPM/pedal/mapa que você digitar, mostra se a troca seria permitida.
+
+Clicar num quadrado "Mapa N" também ajusta o RPM do painel pra N×1000
+(Mapa 1→1000, Mapa 2→2000...) — é só uma conveniência visual pra ficar
+claro que trocou de mapa, não é um valor lido do arquivo (o limitador de
+RPM de cada mapa, esse sim lido de verdade, aparece separado embaixo).
+
+O botão **"🔥 Simular corte Anti-Lag (pé fora)"** faz o mesmo tipo de
+calculadora pro Rolling Anti-Lag (categoria "RAL" do XDF): mostra as
+condições reais do arquivo (temperatura mínima de óleo/arrefecimento,
+desaceleração máxima) e simula "ativo" quando pedal ≤10% e RPM ≥1500 com o
+botão ligado. Se o mapa selecionado ainda estiver com RAL desligado no
+arquivo (`Enable RAL` = 0, como está neste Tiguan), o painel avisa que é
+ilustrativo.
+
+Isso hoje só está calibrado pra hardware code **S50**. Pra outro código
+(A05, V30, etc.), os endereços do XDF são diferentes — repita o processo em
+`gui/map_switch_data.py` (achar a categoria "Map Switching" e "Map Slot N"
+no XDF daquele hardware) antes de confiar no simulador pra ele.
+
+**Isso não substitui teste real** — é só uma conferência de que os números
+de calibração fazem sentido.
+
+## Teste em bancada (a prova real)
+
+Não achei nos PID lists de vocês um parâmetro pronto tipo "mapa ativo" —
+então a forma de confirmar na prática é acompanhar ao vivo um valor que
+você sabe que é diferente entre os mapas (ex.: limitador de RPM, alvo de
+boost, o que você tiver configurado diferente entre os slots no WinOLS).
+
+1. Grave o bin com o SwitchPatch aplicado — **flash completo**, nunca
+   incremental (regra do próprio BinToolz).
+2. Ligue a chave/potenciômetro no pino correto (conforme a documentação de
+   vocês de habilitação).
+3. Logue com o SimosTools (Android) ou outra ferramenta compatível com
+   HSL/Mode22, adicionando ao log o parâmetro que muda entre mapas.
+4. Com o motor ligado, dentro das condições mínimas que o simulador da
+   seção 6 calculou (ex.: RPM e pedal acima do mínimo), mude a posição da
+   chave/pot e observe se esse parâmetro no log muda junto.
+5. Se mudar de forma consistente com o mapa selecionado, a troca está
+   funcionando de verdade — essa é a prova real, não o simulador.
+
+Faça esse teste com o carro parado/em bancada, não dirigindo — está
+mexendo em limitador de RPM e boost ao vivo.
+
 ## Pendências antes de ligar isso no site
 
 - [ ] Confirmar com um flash real (bancada) se o checksum sai correto após

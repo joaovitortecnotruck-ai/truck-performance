@@ -74,6 +74,22 @@ def _resolve_catalog_patch(name: str) -> Path:
     return candidate
 
 
+def _resolve_catalog_xdf(relative_path: str) -> Path:
+    """Look up an .xdf by its path relative to XDF_DIR (as returned by
+    GET /xdf). Resolves symlinks/'..' and rejects anything that escapes
+    XDF_DIR."""
+    if not config.XDF_DIR:
+        raise HTTPException(status_code=500, detail="Server misconfigured: XDF_DIR is not set")
+
+    root = Path(config.XDF_DIR).resolve()
+    candidate = (root / relative_path).resolve()
+    if root not in candidate.parents and candidate != root:
+        raise HTTPException(status_code=400, detail="Invalid path")
+    if not candidate.is_file():
+        raise HTTPException(status_code=404, detail=f"XDF not found: {relative_path}")
+    return candidate
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -96,6 +112,37 @@ def list_patches(hw_code: Optional[str] = None, authorization: Optional[str] = H
         matches = [m for m in matches if m.lower().endswith(needle)]
 
     return {"patches": matches}
+
+
+@app.get("/xdf")
+def list_xdf(hw_code: Optional[str] = None, authorization: Optional[str] = Header(default=None)):
+    require_api_key(authorization)
+
+    if not config.XDF_DIR:
+        raise HTTPException(status_code=500, detail="Server misconfigured: XDF_DIR is not set")
+
+    root = Path(config.XDF_DIR)
+    if not root.is_dir():
+        raise HTTPException(status_code=500, detail=f"XDF_DIR does not exist: {root}")
+
+    files = sorted(root.rglob("*.xdf"))
+    if hw_code:
+        needle = hw_code.lower()
+        files = [f for f in files if needle in f.name.lower()]
+
+    return {
+        "xdf": [
+            {"name": f.name, "path": str(f.relative_to(root)), "folder": str(f.parent.relative_to(root))}
+            for f in files
+        ]
+    }
+
+
+@app.get("/xdf/download")
+def download_xdf(path: str, authorization: Optional[str] = Header(default=None)):
+    require_api_key(authorization)
+    file_path = _resolve_catalog_xdf(path)
+    return FileResponse(path=str(file_path), filename=file_path.name, media_type="application/octet-stream")
 
 
 @app.post("/identify")
