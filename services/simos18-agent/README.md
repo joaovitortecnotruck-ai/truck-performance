@@ -171,10 +171,15 @@ botão ligado. Se o mapa selecionado ainda estiver com RAL desligado no
 arquivo (`Enable RAL` = 0, como está neste Tiguan), o painel avisa que é
 ilustrativo.
 
-Isso hoje só está calibrado pra hardware code **S50**. Pra outro código
-(A05, V30, etc.), os endereços do XDF são diferentes — repita o processo em
-`gui/map_switch_data.py` (achar a categoria "Map Switching" e "Map Slot N"
-no XDF daquele hardware) antes de confiar no simulador pra ele.
+Hoje cobre **S50, A05, LB6, O30 e V30** — endereços extraídos e validados
+(com o SwitchPatch real aplicado em modo `force` sobre um bin de fábrica de
+cada um, valores conferidos por sanidade) contra os XDFs pequenos e
+dedicados em `BinToolz-main/definitions/<HW> Switch Patch.29.33.V2.xdf`.
+Pra outro código, repita o processo em `gui/map_switch_data.py` (mesmo
+esquema de `<title>` nesses XDFs dedicados: "Timeout", "Minimum engagement
+RPM", "Minimum pedal", "Target RPM", "RPM limiter" ×4, "Enable RAL" ×4,
+mais os três títulos de RAL global) — não precisa mexer no resto do código,
+só adicionar a entrada em `_HW_RAW`.
 
 **Isso não substitui teste real** — é só uma conferência de que os números
 de calibração fazem sentido.
