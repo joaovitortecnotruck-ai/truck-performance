@@ -121,6 +121,10 @@ class App(tk.Tk):
         self.sim_pedal = tk.IntVar(value=80)
         self.sim_slot = tk.IntVar(value=1)
         self.sim_ral_active = tk.BooleanVar(value=False)
+        self.edc_bin_path = tk.StringVar()
+        self.edc_hw_code = tk.StringVar(value="-")
+        self.edc_software_code = tk.StringVar(value="-")
+        self.edc_patch_path = tk.StringVar()
         self._sim_data: bytes | None = None
         self._sim_data_path: str | None = None
         self._sim_params: dict | None = None
@@ -161,6 +165,11 @@ class App(tk.Tk):
         style.configure("Vertical.TScrollbar", background=PANEL, troughcolor=BG,
                          bordercolor=BG, arrowcolor=MUTED)
 
+        style.configure("TNotebook", background=BG, borderwidth=0)
+        style.configure("TNotebook.Tab", background=PANEL, foreground=MUTED,
+                         padding=(16, 8), font=("Segoe UI", 9, "bold"))
+        style.map("TNotebook.Tab", background=[("selected", BG)], foreground=[("selected", ACCENT)])
+
     def _listbox(self, parent, **kwargs) -> tk.Listbox:
         return tk.Listbox(
             parent, bg=PANEL, fg=FG, selectbackground=ACCENT, selectforeground="#171717",
@@ -180,12 +189,29 @@ class App(tk.Tk):
         tk.Label(title_box, text="Agente de Multimapa — Simos18", bg=PANEL, fg=MUTED,
                  font=("Segoe UI", 9)).pack(anchor="w")
 
-        frm_bin = ttk.LabelFrame(self, text="1.  Arquivo do cliente (.bin)")
+        self.status = tk.StringVar(value="Verificando serviço local...")
+        tk.Label(self, textvariable=self.status, bg=BG, fg=MUTED, anchor="w").pack(
+            side="bottom", fill="x", padx=14, pady=(2, 10))
+
+        notebook = ttk.Notebook(self)
+        notebook.pack(fill="both", expand=True)
+        self.notebook = notebook
+
+        tab1 = ttk.Frame(notebook)
+        tab2 = ttk.Frame(notebook)
+        notebook.add(tab1, text="  Simos18 — Multimapa  ")
+        notebook.add(tab2, text="  EDC17 (Amarok V6) — Teste  ")
+
+        self._build_simos_tab(tab1, pad)
+        self._build_edc17_tab(tab2, pad)
+
+    def _build_simos_tab(self, tab1, pad):
+        frm_bin = ttk.LabelFrame(tab1, text="1.  Arquivo do cliente (.bin)")
         frm_bin.pack(fill="x", **pad)
         ttk.Entry(frm_bin, textvariable=self.bin_path, width=70).pack(side="left", padx=8, pady=8)
         ttk.Button(frm_bin, text="Escolher...", command=self.choose_bin).pack(side="left")
 
-        frm_info = ttk.LabelFrame(self, text="2.  Identificação")
+        frm_info = ttk.LabelFrame(tab1, text="2.  Identificação")
         frm_info.pack(fill="x", **pad)
         ttk.Button(frm_info, text="Identificar", command=self.on_identify).pack(side="left", padx=8, pady=8)
         ttk.Label(frm_info, text="Hardware:", style="Muted.TLabel").pack(side="left", padx=(20, 4))
@@ -193,7 +219,7 @@ class App(tk.Tk):
         ttk.Label(frm_info, text="Software code:", style="Muted.TLabel").pack(side="left", padx=(20, 4))
         ttk.Label(frm_info, textvariable=self.software_code, style="Value.TLabel").pack(side="left")
 
-        frm_patch = ttk.LabelFrame(self, text="3.  Patch(es) a aplicar")
+        frm_patch = ttk.LabelFrame(tab1, text="3.  Patch(es) a aplicar")
         frm_patch.pack(fill="both", expand=True, **pad)
         self.listbox = self._listbox(frm_patch, selectmode="multiple", height=4)
         self.listbox.pack(side="left", fill="both", expand=True, padx=8, pady=8)
@@ -201,19 +227,19 @@ class App(tk.Tk):
         scroll.pack(side="left", fill="y")
         self.listbox.config(yscrollcommand=scroll.set)
 
-        frm_mode = ttk.LabelFrame(self, text="4.  Modo")
+        frm_mode = ttk.LabelFrame(tab1, text="4.  Modo")
         frm_mode.pack(fill="x", **pad)
         for text, value in [("ignore  —  preserva o Stage do cliente (padrão)", "ignore"),
                              ("normal  —  recusa se o CAL já foi alterado", "normal"),
                              ("force  —  sobrescreve tudo, inclusive calibração", "force")]:
             ttk.Radiobutton(frm_mode, text=text, value=value, variable=self.mode).pack(anchor="w", padx=8, pady=1)
 
-        frm_action = ttk.Frame(self)
+        frm_action = ttk.Frame(tab1)
         frm_action.pack(fill="x", **pad)
         ttk.Button(frm_action, text="Aplicar e salvar como...", style="Accent.TButton",
                    command=self.on_apply).pack(side="left")
 
-        frm_xdf = ttk.LabelFrame(self, text="5.  XDF compatível  (editar mapas no WinOLS/TunerPro)")
+        frm_xdf = ttk.LabelFrame(tab1, text="5.  XDF compatível  (editar mapas no WinOLS/TunerPro)")
         frm_xdf.pack(fill="both", expand=True, **pad)
         self.xdf_listbox = self._listbox(frm_xdf, selectmode="browse", height=3)
         self.xdf_listbox.pack(side="left", fill="both", expand=True, padx=8, pady=8)
@@ -222,7 +248,7 @@ class App(tk.Tk):
         self.xdf_listbox.config(yscrollcommand=xdf_scroll.set)
         ttk.Button(frm_xdf, text="Baixar XDF\nselecionado", command=self.on_download_xdf).pack(side="left", padx=8)
 
-        frm_sim = ttk.LabelFrame(self, text="6.  Painel de troca de mapa  (ao vivo, lê os valores reais do arquivo)")
+        frm_sim = ttk.LabelFrame(tab1, text="6.  Painel de troca de mapa  (ao vivo, lê os valores reais do arquivo)")
         frm_sim.pack(fill="both", expand=True, **pad)
 
         sliders = ttk.Frame(frm_sim)
@@ -253,8 +279,41 @@ class App(tk.Tk):
         ttk.Label(frm_sim, text="Clique num quadrado \"Mapa N\" pra selecioná-lo.",
                   style="Muted.TLabel").pack(anchor="w", padx=8, pady=(0, 8))
 
-        self.status = tk.StringVar(value="Verificando serviço local...")
-        tk.Label(self, textvariable=self.status, bg=BG, fg=MUTED, anchor="w").pack(fill="x", padx=14, pady=(2, 10))
+    def _build_edc17_tab(self, tab2, pad):
+        warn = ttk.LabelFrame(tab2, text="⚠ Experimental")
+        warn.pack(fill="x", **pad)
+        ttk.Label(
+            warn, style="Muted.TLabel", wraplength=740, justify="left",
+            text="EDC17CP54 (Amarok V6 diesel) - não sabemos o layout real de calibração dessa "
+                 "plataforma, então só o modo FORCE tem efeito (sobrescreve tudo). Nunca testado "
+                 "em bancada real, só validado byte a byte contra um arquivo de referência. "
+                 "O patch só se aplica ao software code exato pra que foi criado (o motor recusa "
+                 "aplicar em software code diferente).",
+        ).pack(fill="x", padx=8, pady=8)
+
+        frm_bin = ttk.LabelFrame(tab2, text="1.  Arquivo do cliente (.bin/.ori)")
+        frm_bin.pack(fill="x", **pad)
+        ttk.Entry(frm_bin, textvariable=self.edc_bin_path, width=70).pack(side="left", padx=8, pady=8)
+        ttk.Button(frm_bin, text="Escolher...", command=self.choose_edc_bin).pack(side="left")
+
+        frm_info = ttk.LabelFrame(tab2, text="2.  Identificação")
+        frm_info.pack(fill="x", **pad)
+        ttk.Button(frm_info, text="Identificar", command=self.on_edc_identify).pack(side="left", padx=8, pady=8)
+        ttk.Label(frm_info, text="Hardware:", style="Muted.TLabel").pack(side="left", padx=(20, 4))
+        ttk.Label(frm_info, textvariable=self.edc_hw_code, style="Value.TLabel").pack(side="left")
+        ttk.Label(frm_info, text="Software code:", style="Muted.TLabel").pack(side="left", padx=(20, 4))
+        ttk.Label(frm_info, textvariable=self.edc_software_code, style="Value.TLabel").pack(side="left")
+
+        frm_patch = ttk.LabelFrame(tab2, text="3.  Patch (.btp) a aplicar")
+        frm_patch.pack(fill="x", **pad)
+        ttk.Entry(frm_patch, textvariable=self.edc_patch_path, width=70).pack(side="left", padx=8, pady=8)
+        ttk.Button(frm_patch, text="Escolher .btp...", command=self.choose_edc_patch).pack(side="left")
+
+        frm_action = ttk.Frame(tab2)
+        frm_action.pack(fill="x", **pad)
+        ttk.Button(frm_action, text="Aplicar (modo force) e salvar como...", style="Accent.TButton",
+                   command=self.on_edc_apply).pack(side="left")
+        ttk.Label(frm_action, text="modo: force (fixo nessa aba)", style="Muted.TLabel").pack(side="left", padx=(16, 0))
 
     # ------------------------------------------------------------ helpers --
     def _check_server(self):
@@ -558,6 +617,142 @@ class App(tk.Tk):
                 messagebox.showerror("Erro", str(e))
 
         threading.Thread(target=run, daemon=True).start()
+
+    # ------------------------------------------------------- aba EDC17 --
+    def choose_edc_bin(self):
+        path = filedialog.askopenfilename(
+            title="Escolha o .bin/.ori do cliente (EDC17CP54)",
+            initialdir=self._state.get("last_dir_edc17") or None,
+            filetypes=[("BIN/ORI files", "*.bin *.ori"), ("Todos", "*.*")],
+        )
+        if path:
+            self.edc_bin_path.set(path)
+            self._state["last_dir_edc17"] = str(Path(path).parent)
+            save_state(self._state)
+
+    def choose_edc_patch(self):
+        path = filedialog.askopenfilename(
+            title="Escolha o patch .btp",
+            initialdir=self._state.get("last_dir_edc17_patch") or None,
+            filetypes=[("BTP files", "*.btp"), ("Todos", "*.*")],
+        )
+        if path:
+            self.edc_patch_path.set(path)
+            self._state["last_dir_edc17_patch"] = str(Path(path).parent)
+            save_state(self._state)
+
+    def on_edc_identify(self):
+        if not self.edc_bin_path.get():
+            messagebox.showwarning("Atenção", "Escolha o arquivo .bin/.ori primeiro.")
+            return
+        if not self.api_key:
+            messagebox.showerror("Erro", f"Não achei API_KEY em {ENV_PATH}")
+            return
+
+        def run():
+            self.status.set("Identificando (EDC17)...")
+            status, data = multipart_request(
+                "/identify", {}, {"bin": (Path(self.edc_bin_path.get()).name, self.edc_bin_path.get())}, self.api_key
+            )
+            if status != 200:
+                self.status.set("Falha ao identificar.")
+                messagebox.showerror("Erro", data.decode(errors="replace"))
+                return
+
+            info = json.loads(data)
+            self.edc_hw_code.set(info["hardware"])
+            self.edc_software_code.set(info["software_code"])
+            self.status.set("Identificado.")
+
+        threading.Thread(target=run, daemon=True).start()
+
+    def on_edc_apply(self):
+        if not self.edc_bin_path.get():
+            messagebox.showwarning("Atenção", "Escolha o arquivo .bin/.ori primeiro.")
+            return
+        if not self.edc_patch_path.get():
+            messagebox.showwarning("Atenção", "Escolha o patch .btp primeiro.")
+            return
+
+        output_path = filedialog.asksaveasfilename(
+            title="Salvar bin com patch aplicado",
+            defaultextension=".bin",
+            filetypes=[("BIN files", "*.bin")],
+            initialfile=Path(self.edc_bin_path.get()).stem + "_multimapa.bin",
+        )
+        if not output_path:
+            return
+
+        input_bin = self.edc_bin_path.get()
+        patch_path = self.edc_patch_path.get()
+
+        def run():
+            self.status.set("Aplicando patch (EDC17, modo force)...")
+            status, data = self._apply_with_uploaded_patch(input_bin, patch_path, "force", Path(output_path).name)
+
+            if status == 200:
+                Path(output_path).write_bytes(data)
+                self.status.set(f"OK - salvo em {output_path}")
+                log_apply(input_bin=input_bin, output_bin=output_path, hardware=self.edc_hw_code.get(),
+                          software_code=self.edc_software_code.get(), patches=[Path(patch_path).name],
+                          mode="force", success=True, detail="EDC17CP54 (experimental)")
+                messagebox.showinfo("Sucesso", f"Arquivo gerado:\n{output_path}\n\nLembre-se: EDC17CP54 é experimental, nunca testado em bancada. Confira com cuidado antes de gravar numa ECU real.")
+            else:
+                self.status.set("Falha ao aplicar.")
+                try:
+                    err = json.loads(data)
+                    detail = "\n".join(err.get("log", [str(err)]))
+                except Exception:
+                    detail = data.decode(errors="replace")
+                log_apply(input_bin=input_bin, output_bin=output_path, hardware=self.edc_hw_code.get(),
+                          software_code=self.edc_software_code.get(), patches=[Path(patch_path).name],
+                          mode="force", success=False, detail=detail)
+                messagebox.showerror("Erro", detail)
+
+        threading.Thread(target=run, daemon=True).start()
+
+    def _apply_with_uploaded_patch(self, bin_path: str, patch_path: str, mode: str, output_name: str):
+        """Igual ao /apply, mas envia o .btp direto (nao vem do catalogo do
+        servidor - PATCHES_DIR) via multipart 'patch_files'."""
+        boundary = uuid.uuid4().hex
+        body = bytearray()
+
+        def add_field(name, value):
+            nonlocal body
+            body += f"--{boundary}\r\n".encode()
+            body += f'Content-Disposition: form-data; name="{name}"\r\n\r\n'.encode()
+            body += f"{value}\r\n".encode()
+
+        add_field("mode", mode)
+        add_field("output_name", output_name)
+
+        body += f"--{boundary}\r\n".encode()
+        body += f'Content-Disposition: form-data; name="bin"; filename="{Path(bin_path).name}"\r\n'.encode()
+        body += b"Content-Type: application/octet-stream\r\n\r\n"
+        body += Path(bin_path).read_bytes()
+        body += b"\r\n"
+
+        body += f"--{boundary}\r\n".encode()
+        body += f'Content-Disposition: form-data; name="patch_files"; filename="{Path(patch_path).name}"\r\n'.encode()
+        body += b"Content-Type: application/octet-stream\r\n\r\n"
+        body += Path(patch_path).read_bytes()
+        body += b"\r\n"
+        body += f"--{boundary}--\r\n".encode()
+
+        req = urllib.request.Request(
+            f"{BASE_URL}/apply",
+            data=bytes(body),
+            method="POST",
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": f"multipart/form-data; boundary={boundary}",
+            },
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=180) as resp:
+                return resp.status, resp.read()
+        except urllib.error.HTTPError as e:
+            return e.code, e.read()
 
     def on_apply(self):
         if not self.bin_path.get():
