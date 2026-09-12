@@ -17,8 +17,8 @@ export default function LoginPage({
             Envie, acompanhe e receba seus arquivos de remapeamento em um só lugar.
           </p>
           <p className="mt-4 max-w-sm text-sm text-ink-500">
-            Plataforma oficial Truck Performance, em parceria com Diesel Master, para
-            gerenciamento de arquivos de ECU e TCU.
+            Plataforma oficial Truck Performance para gerenciamento de arquivos
+            de ECU e TCU.
           </p>
         </div>
       </div>

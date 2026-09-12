@@ -23,7 +23,7 @@ const mono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: "Truck Performance | Plataforma de Remapeamento",
   description:
-    "Gerenciamento, envio, processamento e entrega de arquivos de remapeamento automotivo — Truck Performance em parceria com Diesel Master.",
+    "Gerenciamento, envio, processamento e entrega de arquivos de remapeamento automotivo — Truck Performance.",
 };
 
 export default function RootLayout({

@@ -19,12 +19,3 @@ export function Logo({ compact = false }: { compact?: boolean }) {
     </div>
   );
 }
-
-export function PartnerBadge() {
-  return (
-    <div className="flex items-center gap-2 rounded-full border border-base-700 bg-base-900 px-3 py-1.5 text-[11px] text-ink-500">
-      <span>em parceria com</span>
-      <span className="font-display font-semibold tracking-wide text-ink-300">Diesel Master</span>
-    </div>
-  );
-}

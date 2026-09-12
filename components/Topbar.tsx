@@ -1,5 +1,4 @@
 import { Bell } from "lucide-react";
-import { PartnerBadge } from "./Logo";
 
 export function Topbar({
   title,
@@ -19,7 +18,6 @@ export function Topbar({
         {subtitle && <p className="mt-1 text-sm text-ink-500">{subtitle}</p>}
       </div>
       <div className="flex items-center gap-3">
-        <PartnerBadge />
         {notificationSlot ?? (
           <button
             type="button"
