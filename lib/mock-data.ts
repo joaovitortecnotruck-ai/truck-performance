@@ -1,0 +1,128 @@
+import { Order } from "./types";
+
+// Dados de demonstração — substituir por consultas reais ao Supabase (tabela `orders`).
+// Mantidos aqui separadamente para deixar claro o que é mock e facilitar a troca futura.
+export const MOCK_ORDERS: Order[] = [
+  {
+    id: "TP-2026-000123",
+    clienteId: "cli_001",
+    veiculo: {
+      id: "veh_001",
+      marca: "Volkswagen",
+      modelo: "Amarok",
+      motorizacao: "3.0 V6 TDI",
+      ano: "2022",
+      km: "80000",
+      placa: "ABC1D23",
+      ecuModelo: "Bosch EDC17CP54",
+      metodoLeitura: "OBD",
+    },
+    stage: "stage1",
+    opcionais: ["hardcut", "pops-bangs"],
+    arquivoOriginalNome: "AMAROK_3.0_EDC17CP54_ORI.bin",
+    subtotal: 1150,
+    desconto: 0,
+    total: 1150,
+    status: "em_desenvolvimento",
+    pagamento: "pago",
+    criadoEm: "2026-09-08T13:20:00-03:00",
+    termosAceitos: [
+      { termo: "leitura_gravacao", versao: "1.0", aceitoEm: "2026-09-08T13:22:00-03:00" },
+    ],
+    mensagens: [
+      { id: "m1", autor: "admin", texto: "Qual combustível está sendo utilizado?", criadoEm: "2026-09-08T14:00:00-03:00" },
+      { id: "m2", autor: "cliente", texto: "Diesel S10.", criadoEm: "2026-09-08T14:05:00-03:00" },
+    ],
+    arquivos: [
+      { id: "f1", tipo: "original", nome: "AMAROK_3.0_EDC17CP54_ORI.bin", tamanhoBytes: 4194304, criadoEm: "2026-09-08T13:20:00-03:00" },
+    ],
+  },
+  {
+    id: "TP-2026-000124",
+    clienteId: "cli_002",
+    veiculo: {
+      id: "veh_002",
+      marca: "Ford",
+      modelo: "Ranger",
+      motorizacao: "3.2 Diesel",
+      ano: "2020",
+      km: "85000",
+      placa: "XYZ9K88",
+      ecuModelo: "SID209",
+      metodoLeitura: "OBD",
+    },
+    stage: "stage1",
+    opcionais: ["hardcut", "pops-bangs", "launch-control"],
+    subtotal: 1300,
+    desconto: 0,
+    total: 1300,
+    status: "aguardando_pagamento",
+    pagamento: "pendente",
+    criadoEm: "2026-09-10T09:12:00-03:00",
+    termosAceitos: [],
+    mensagens: [],
+    arquivos: [],
+  },
+  {
+    id: "TP-2026-000125",
+    clienteId: "cli_003",
+    veiculo: {
+      id: "veh_003",
+      marca: "Mercedes-Benz",
+      modelo: "Actros",
+      motorizacao: "OM 471",
+      ano: "2019",
+      km: "310000",
+      placa: "MBZ4A11",
+      ecuModelo: "Bosch MD1CS004",
+      metodoLeitura: "BENCH",
+    },
+    stage: "stage2",
+    opcionais: ["egr-off", "dpf-off"],
+    subtotal: 1600,
+    desconto: 100,
+    total: 1500,
+    status: "arquivo_pronto",
+    pagamento: "pago",
+    criadoEm: "2026-09-05T10:00:00-03:00",
+    termosAceitos: [
+      { termo: "emissoes", versao: "1.0", aceitoEm: "2026-09-05T10:05:00-03:00" },
+    ],
+    mensagens: [],
+    arquivos: [
+      { id: "f2", tipo: "original", nome: "ACTROS_OM471_MD1CS004_ORI.bin", tamanhoBytes: 8388608, criadoEm: "2026-09-05T10:00:00-03:00" },
+      { id: "f3", tipo: "modificado", nome: "ACTROS_OM471_MD1CS004_STAGE2.bin", tamanhoBytes: 8388608, criadoEm: "2026-09-09T17:30:00-03:00" },
+    ],
+  },
+  {
+    id: "TP-2026-000126",
+    clienteId: "cli_001",
+    veiculo: {
+      id: "veh_004",
+      marca: "Iveco",
+      modelo: "Daily",
+      motorizacao: "3.0 HPI",
+      ano: "2021",
+      km: "62000",
+      placa: "IVC2C40",
+      metodoLeitura: "OBD",
+    },
+    stage: "stage1",
+    opcionais: [],
+    subtotal: 800,
+    desconto: 0,
+    total: 800,
+    status: "finalizado",
+    pagamento: "pago",
+    criadoEm: "2026-08-28T08:40:00-03:00",
+    termosAceitos: [
+      { termo: "leitura_gravacao", versao: "1.0", aceitoEm: "2026-08-30T11:00:00-03:00" },
+    ],
+    mensagens: [],
+    arquivos: [],
+  },
+];
+
+export function getOrderById(id: string) {
+  return MOCK_ORDERS.find((o) => o.id === id);
+}
