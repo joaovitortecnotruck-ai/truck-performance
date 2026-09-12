@@ -16,6 +16,8 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from patch_labels import friendly_label
+from state import load_state, save_state
+from audit import log_apply
 from map_switch_data import (
     MAP_SWITCH_TABLES, read_global_params, read_rpm_limiter,
     RAL_TABLES, read_ral_global, read_ral_enabled,
@@ -104,11 +106,14 @@ class App(tk.Tk):
         self._header_img = tk.PhotoImage(file=resource_path("icon_header.png"))
         self._setup_style()
 
+        self._state = load_state()
+
         self.api_key = read_api_key()
         self.bin_path = tk.StringVar()
         self.hw_code = tk.StringVar(value="-")
         self.software_code = tk.StringVar(value="-")
-        self.mode = tk.StringVar(value="ignore")
+        self.mode = tk.StringVar(value=self._state.get("last_mode", "ignore"))
+        self.mode.trace_add("write", self._on_mode_change)
         self.patch_names: list[str] = []
         self.xdf_entries: list[dict] = []
         self.hw_short = ""
@@ -264,10 +269,20 @@ class App(tk.Tk):
                 )
         threading.Thread(target=run, daemon=True).start()
 
+    def _on_mode_change(self, *_args):
+        self._state["last_mode"] = self.mode.get()
+        save_state(self._state)
+
     def choose_bin(self):
-        path = filedialog.askopenfilename(title="Escolha o .bin do cliente", filetypes=[("BIN files", "*.bin"), ("Todos", "*.*")])
+        path = filedialog.askopenfilename(
+            title="Escolha o .bin do cliente",
+            initialdir=self._state.get("last_dir") or None,
+            filetypes=[("BIN files", "*.bin"), ("Todos", "*.*")],
+        )
         if path:
             self.bin_path.set(path)
+            self._state["last_dir"] = str(Path(path).parent)
+            save_state(self._state)
 
     def on_identify(self):
         if not self.bin_path.get():
@@ -483,6 +498,14 @@ class App(tk.Tk):
         self.listbox.delete(0, "end")
         for name in self.patch_names:
             self.listbox.insert("end", friendly_label(name))
+
+        # pre-marca o combo recomendado (SwitchPatch + anti-brick) - o usuario
+        # pode desmarcar se nao quiser
+        RECOMMENDED = ("sl patch", "sl cbrick")
+        for i, name in enumerate(self.patch_names):
+            if name.lower().startswith(RECOMMENDED):
+                self.listbox.selection_set(i)
+
         self.status.set(f"{len(self.patch_names)} patch(es) disponível(is) para {hw_hint}.")
 
     def _load_xdf(self, software_code: str):
@@ -554,24 +577,32 @@ class App(tk.Tk):
         if not output_path:
             return
 
+        input_bin = self.bin_path.get()
+        mode = self.mode.get()
+
         def run():
             self.status.set("Aplicando patch(es)...")
-            fields = {"mode": self.mode.get(), "output_name": Path(output_path).name}
-            status, data = self._apply_multi(self.bin_path.get(), selected, fields)
+            fields = {"mode": mode, "output_name": Path(output_path).name}
+            status, data = self._apply_multi(input_bin, selected, fields)
 
             if status == 200:
                 Path(output_path).write_bytes(data)
                 self.bin_path.set(output_path)
                 self._refresh_sim_data()
                 self.status.set(f"OK - salvo em {output_path}")
+                log_apply(input_bin=input_bin, output_bin=output_path, hardware=self.hw_code.get(),
+                          software_code=self.software_code.get(), patches=selected, mode=mode, success=True)
                 messagebox.showinfo("Sucesso", f"Arquivo gerado:\n{output_path}\n\nLembre-se: a próxima gravação na ECU precisa ser um flash completo.\n\nO painel (seção 6) já foi atualizado com este arquivo.")
             else:
                 self.status.set("Falha ao aplicar.")
                 try:
                     err = json.loads(data)
-                    messagebox.showerror("Erro", "\n".join(err.get("log", [str(err)])))
+                    detail = "\n".join(err.get("log", [str(err)]))
                 except Exception:
-                    messagebox.showerror("Erro", data.decode(errors="replace"))
+                    detail = data.decode(errors="replace")
+                log_apply(input_bin=input_bin, output_bin=output_path, hardware=self.hw_code.get(),
+                          software_code=self.software_code.get(), patches=selected, mode=mode, success=False, detail=detail)
+                messagebox.showerror("Erro", detail)
 
         threading.Thread(target=run, daemon=True).start()
 
