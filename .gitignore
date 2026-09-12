@@ -12,3 +12,4 @@ build_tmp
 .claude/scheduled_tasks.lock
 services/simos18-agent/gui_state.json
 services/simos18-agent/logs/
+services/simos18-agent/patches_custom/

@@ -70,8 +70,12 @@ def _resolve_mode(mode_str: str) -> DataMode:
     }[mode_str]
 
 
-def check(bin_path: str, patch_paths: list[str]) -> ReturnType:
-    return patchApply(FunctionType.FUNC_CHECK, bin_path, patch_paths, "", DataMode.IGNORE, print)
+def check(bin_path: str, patch_paths: list[str], mode: str) -> ReturnType:
+    # "normal" por padrao (nao "ignore"): so em modo normal uma calibracao
+    # divergente vira de fato um erro reportado - em ignore/force esse tipo
+    # de divergencia e silenciosamente perdoada, o que faz o check mentir
+    # "contains patch"/"ready to accept" mesmo quando nao e bem assim.
+    return patchApply(FunctionType.FUNC_CHECK, bin_path, patch_paths, "", _resolve_mode(mode), print)
 
 
 def apply(bin_path: str, output_path: str, patch_paths: list[str], mode: str) -> ReturnType:
@@ -100,6 +104,8 @@ def main() -> int:
     p_check = sub.add_parser("check", help="Check whether a bin is ready to accept patch(es)")
     p_check.add_argument("bin")
     p_check.add_argument("patches", nargs="+")
+    p_check.add_argument("--mode", choices=["normal", "ignore", "force"], default="normal",
+                          help="normal (default) reports a modified calibration as an error instead of silently ignoring it")
 
     p_apply = sub.add_parser("apply", help="Apply patch(es) to a bin")
     p_apply.add_argument("bin")
@@ -128,7 +134,7 @@ def main() -> int:
     elif args.command == "list":
         ret = list_patches(args.patches_dir, args.hw_code)
     elif args.command == "check":
-        ret = check(args.bin, args.patches)
+        ret = check(args.bin, args.patches, args.mode)
     elif args.command == "apply":
         ret = apply(args.bin, args.output, args.patches, args.mode)
     elif args.command == "remove":

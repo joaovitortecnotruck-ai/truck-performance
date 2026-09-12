@@ -81,6 +81,30 @@ simosHW = {
 			SimosBlock(0x0,			0x30000,		0x020000)
 		]
 	),
+	# Adicionado por nos (nao faz parte do BinToolz original) - Bosch EDC17CP54
+	# (diesel, VW Amarok V6). Endereco de box/software code confirmados por
+	# busca direta no bin (ver services/simos18-agent - investigacao do
+	# multimapa Amarok V6). NAO sabemos o layout real de blocos/calibracao
+	# dessa plataforma, entao usamos um unico "bloco" cobrindo o arquivo
+	# inteiro - na pratica isso significa que so o modo FORCE tem efeito
+	# aqui (o modo "ignore" preservaria o bloco de calibracao, mas como
+	# calBlock() = arquivo inteiro, ignore acabaria nao escrevendo nada).
+	# IMPORTANTE: mesmo tamanho de arquivo (8388608) que "Simos 19" abaixo -
+	# por isso essa entrada vem ANTES na ordem do dict (hardwareType() usa a
+	# primeira que bater); se um dia precisar de Simos 19 de verdade, vai
+	# ter que reforcar a checagem (ela so olha se o primeiro byte do box
+	# code nao e zero, o que nao distingue as duas plataformas).
+	"EDC17CP54": SimosHardware(
+		0x2CE3A8,
+		0x2CE3B3,
+		0x0506D2,
+		0x0506DA,
+		8388608,
+		0x0,
+		[
+			SimosBlock(0x0, 0x0, 8388608),
+		]
+	),
 	"Simos 19": SimosHardware(
 		0x00700500,
 		0x0070050B,

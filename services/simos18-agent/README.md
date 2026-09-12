@@ -206,6 +206,39 @@ boost, o que você tiver configurado diferente entre os slots no WinOLS).
 Faça esse teste com o carro parado/em bancada, não dirigindo — está
 mexendo em limitador de RPM e boost ao vivo.
 
+## EDC17CP54 (Amarok V6, diesel) - experimental
+
+Adicionamos suporte experimental a essa plataforma (diferente da Simos18 -
+é Bosch diesel, TriCore, flash de 8MB). Descoberto e validado com um par
+real ORI/multimapa (box `2H6907311AC`, software `1556APFB`):
+
+- `vendor/simos_bin.py`: entrada `"EDC17CP54"` no dict `simosHW` (endereço
+  de box code em `0x2CE3A8`, software code em `0x0506D2`, ambos achados por
+  busca de string no bin - não são documentação oficial de ninguém).
+- **Limitação importante**: não sabemos o layout real de blocos/calibração
+  dessa plataforma, então definimos um único "bloco" cobrindo o arquivo
+  inteiro (`blocks=[SimosBlock(0,0,8388608)]`). Na prática isso quer dizer
+  que **só o modo `force` tem efeito** aqui - `ignore` acabaria não
+  escrevendo nada, porque ele existe pra pular o bloco de calibração, e
+  pra essa plataforma "o bloco de calibração" = o arquivo inteiro.
+- O patch de exemplo (`.btp` gerado a partir do par ORI/multimapa real,
+  cobrindo box `2H6907311AC`/software `1556APFB`) fica em
+  `patches_custom/` (fora do git, é dado sensível da sua biblioteca - não
+  redistribua). Pra outra revisão de software (`APIB`, `APE1`, etc.),
+  repita o `create` com o par ORI/multimapa daquela revisão - o próprio
+  motor recusa aplicar um `.btp` de uma revisão em outra (confere o
+  software code no cabeçalho do patch).
+- **Isso nunca foi testado em bancada** - só validado byte a byte contra o
+  arquivo de referência que você já tinha. Vale muito mais a pena aqui do
+  que no Simos18 (ver seção de teste em bancada acima), já que é uma
+  plataforma nova pro nosso motor.
+
+Durante essa investigação também achamos e corrigimos um bug real: o
+comando `check` (CLI e `/check` da API) estava sempre usando modo
+`ignore`, que **perdoa silenciosamente** uma calibração divergente em vez
+de reportar erro - só o modo `normal` faz essa checagem valer. Agora
+`check` usa `normal` por padrão (`--mode` continua disponível pra mudar).
+
 ## Pendências antes de ligar isso no site
 
 - [ ] Confirmar com um flash real (bancada) se o checksum sai correto após

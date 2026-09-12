@@ -183,8 +183,13 @@ def check(
     bin: UploadFile = File(...),
     patch_names: list[str] = Form(default=[]),
     patch_files: list[UploadFile] = File(default=[]),
+    mode: str = Form(default="normal"),
 ):
     require_api_key(authorization)
+    # "normal" por padrao (nao "ignore"): so em modo normal uma calibracao
+    # divergente vira de fato um erro reportado, em vez de ser perdoada em
+    # silencio - ver agent.py:check() pro mesmo raciocinio
+    data_mode = _mode(mode)
 
     with tempfile.TemporaryDirectory() as tmp_str:
         tmp = Path(tmp_str)
@@ -192,7 +197,7 @@ def check(
         patch_paths = _collect_patch_paths(tmp, patch_names, patch_files)
 
         log_lines: list[str] = []
-        patchApply(FunctionType.FUNC_CHECK, str(bin_path), patch_paths, "", DataMode.IGNORE, log_lines.append)
+        patchApply(FunctionType.FUNC_CHECK, str(bin_path), patch_paths, "", data_mode, log_lines.append)
 
         return {"log": log_lines}
 
