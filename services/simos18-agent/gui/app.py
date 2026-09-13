@@ -18,6 +18,7 @@ from tkinter import filedialog, messagebox, ttk
 from patch_labels import friendly_label
 from state import load_state, save_state
 from audit import log_apply
+from edc17_maps import EDC17_TABLE_GROUPS, read_all_slots, is_all_zero
 from map_switch_data import (
     MAP_SWITCH_TABLES, read_global_params, read_rpm_limiter,
     RAL_TABLES, read_ral_global, read_ral_enabled,
@@ -125,6 +126,9 @@ class App(tk.Tk):
         self.edc_hw_code = tk.StringVar(value="-")
         self.edc_software_code = tk.StringVar(value="-")
         self.edc_patch_path = tk.StringVar()
+        self.edc_group = tk.StringVar(value="")
+        self.edc_slot = tk.IntVar(value=1)
+        self._edc_decoded: dict = {}
         self._sim_data: bytes | None = None
         self._sim_data_path: str | None = None
         self._sim_params: dict | None = None
@@ -164,6 +168,12 @@ class App(tk.Tk):
 
         style.configure("Vertical.TScrollbar", background=PANEL, troughcolor=BG,
                          bordercolor=BG, arrowcolor=MUTED)
+
+        style.configure("Treeview", background=PANEL, fieldbackground=PANEL, foreground=FG,
+                         bordercolor=BORDER, borderwidth=0, rowheight=22)
+        style.configure("Treeview.Heading", background=BORDER, foreground=ACCENT,
+                         font=("Segoe UI", 8, "bold"), relief="flat")
+        style.map("Treeview", background=[("selected", ACCENT)], foreground=[("selected", "#171717")])
 
         style.configure("TNotebook", background=BG, borderwidth=0)
         style.configure("TNotebook.Tab", background=PANEL, foreground=MUTED,
@@ -314,6 +324,29 @@ class App(tk.Tk):
         ttk.Button(frm_action, text="Aplicar (modo force) e salvar como...", style="Accent.TButton",
                    command=self.on_edc_apply).pack(side="left")
         ttk.Label(frm_action, text="modo: force (fixo nessa aba)", style="Muted.TLabel").pack(side="left", padx=(16, 0))
+
+        frm_maps = ttk.LabelFrame(tab2, text="4.  Painel de mapas do multimapa (decodificador)")
+        frm_maps.pack(fill="both", expand=True, **pad)
+
+        maps_top = ttk.Frame(frm_maps)
+        maps_top.pack(fill="x", padx=8, pady=(8, 4))
+        ttk.Button(maps_top, text="Analisar mapas do arquivo escolhido",
+                   command=self.on_edc_analyze).pack(side="left")
+
+        self.edc_group_buttons = ttk.Frame(frm_maps)
+        self.edc_group_buttons.pack(fill="x", padx=8, pady=(0, 4))
+
+        self.edc_slot_buttons = ttk.Frame(frm_maps)
+        self.edc_slot_buttons.pack(fill="x", padx=8, pady=(0, 4))
+
+        self.edc_tree = ttk.Treeview(frm_maps, show="headings", height=10)
+        self.edc_tree.pack(fill="both", expand=True, padx=8, pady=(4, 4))
+        edc_tree_scroll = ttk.Scrollbar(frm_maps, command=self.edc_tree.yview)
+        self.edc_tree.configure(yscrollcommand=edc_tree_scroll.set)
+
+        ttk.Label(frm_maps, text="Valores brutos (escala Nm/rpm real ainda não confirmada) — "
+                                  "primeira coluna é o eixo Y, demais colunas são o eixo X.",
+                  style="Muted.TLabel").pack(anchor="w", padx=8, pady=(0, 8))
 
     # ------------------------------------------------------------ helpers --
     def _check_server(self):
@@ -753,6 +786,79 @@ class App(tk.Tk):
                 return resp.status, resp.read()
         except urllib.error.HTTPError as e:
             return e.code, e.read()
+
+    def on_edc_analyze(self):
+        if not self.edc_bin_path.get() or not Path(self.edc_bin_path.get()).is_file():
+            messagebox.showwarning("Atenção", "Escolha um arquivo .bin/.ori válido primeiro.")
+            return
+
+        software_code = self.edc_software_code.get().strip()
+        if software_code not in EDC17_TABLE_GROUPS:
+            messagebox.showwarning(
+                "Não suportado",
+                f"Não tenho os endereços dos mapas para o software '{software_code or '?'}'.\n\n"
+                "Clique em Identificar primeiro (seção 2), ou esse software ainda não foi mapeado "
+                "(só '1556APFB' por enquanto)."
+            )
+            return
+
+        data = Path(self.edc_bin_path.get()).read_bytes()
+        self._edc_decoded = read_all_slots(data, software_code)
+
+        for w in self.edc_group_buttons.winfo_children():
+            w.destroy()
+        for key, g in self._edc_decoded.items():
+            ttk.Button(self.edc_group_buttons, text=g["label"],
+                       command=lambda k=key: self._select_edc_group(k)).pack(side="left", padx=(0, 6))
+
+        first_key = next(iter(self._edc_decoded), None)
+        if first_key:
+            self._select_edc_group(first_key)
+        self.status.set("Mapas analisados.")
+
+    def _select_edc_group(self, group_key: str):
+        self.edc_group.set(group_key)
+        group = self._edc_decoded[group_key]
+
+        for w in self.edc_slot_buttons.winfo_children():
+            w.destroy()
+        for i, table in enumerate(group["slots"], start=1):
+            label = f"Slot {i}" + ("" if not is_all_zero(table) else " (vazio)")
+            ttk.Button(self.edc_slot_buttons, text=label,
+                       command=lambda idx=i: self._select_edc_slot(idx)).pack(side="left", padx=(0, 6))
+
+        self._select_edc_slot(1)
+
+    def _select_edc_slot(self, slot_number: int):
+        self.edc_slot.set(slot_number)
+        group = self._edc_decoded.get(self.edc_group.get())
+        if not group:
+            return
+        table = group["slots"][slot_number - 1]
+        self._render_edc_table(table)
+
+    def _render_edc_table(self, table: dict):
+        tree = self.edc_tree
+        tree.delete(*tree.get_children())
+
+        if table is None or is_all_zero(table):
+            tree["columns"] = ("msg",)
+            tree.heading("msg", text="")
+            tree.column("msg", width=400)
+            tree.insert("", "end", values=("(esse slot está vazio/zerado neste arquivo)",))
+            return
+
+        columns = ["y_axis"] + [f"x{i}" for i in range(table["x_count"])]
+        tree["columns"] = columns
+        tree.heading("y_axis", text="Y \\ X")
+        tree.column("y_axis", width=70, anchor="center")
+        for i, x_val in enumerate(table["x_axis"]):
+            tree.heading(f"x{i}", text=str(x_val))
+            tree.column(f"x{i}", width=60, anchor="center")
+
+        for row_idx, y_val in enumerate(table["y_axis"]):
+            row_values = [y_val] + table["grid"][row_idx]
+            tree.insert("", "end", values=row_values)
 
     def on_apply(self):
         if not self.bin_path.get():
