@@ -21,6 +21,7 @@ from state import load_state, save_state
 from audit import log_apply
 from edc17_maps import EDC17_TABLE_GROUPS, read_all_slots, is_all_zero
 import b58_patch
+import cczb_patch
 from map_switch_data import (
     MAP_SWITCH_TABLES, read_global_params, read_rpm_limiter,
     RAL_TABLES, read_ral_global, read_ral_enabled,
@@ -143,6 +144,9 @@ class App(tk.Tk):
         self._edc_decoded: dict = {}
         self.b58_bin_path = tk.StringVar()
         self.b58_family = tk.StringVar(value="3076")
+        self.cczb_bin_path = tk.StringVar()
+        self.cczb_stage = tk.StringVar(value="stg1")
+        self.cczb_mode = tk.StringVar(value="full")
         self._sim_data: bytes | None = None
         self._sim_data_path: str | None = None
         self._sim_params: dict | None = None
@@ -224,13 +228,16 @@ class App(tk.Tk):
         tab1 = ttk.Frame(notebook)
         tab2 = ttk.Frame(notebook)
         tab3 = ttk.Frame(notebook)
+        tab4 = ttk.Frame(notebook)
         notebook.add(tab1, text="  Simos18 — Multimapa  ")
         notebook.add(tab2, text="  EDC17 (Amarok V6) — Teste  ")
         notebook.add(tab3, text="  BMW B58 — Teste  ")
+        notebook.add(tab4, text="  CCZB MED17.5 — Teste  ")
 
         self._build_simos_tab(tab1, pad)
         self._build_edc17_tab(tab2, pad)
         self._build_b58_tab(tab3, pad)
+        self._build_cczb_tab(tab4, pad)
 
     def _build_simos_tab(self, tab1, pad):
         frm_bin = ttk.LabelFrame(tab1, text="1.  Arquivo do cliente (.bin)")
@@ -396,6 +403,41 @@ class App(tk.Tk):
         ttk.Button(frm_action, text="Checar", command=self.on_b58_check).pack(side="left")
         ttk.Button(frm_action, text="Aplicar e salvar como...", style="Accent.TButton",
                    command=self.on_b58_apply).pack(side="left", padx=(8, 0))
+
+    def _build_cczb_tab(self, tab4, pad):
+        warn = ttk.LabelFrame(tab4, text="⚠ Experimental")
+        warn.pack(fill="x", **pad)
+        ttk.Label(
+            warn, style="Muted.TLabel", wraplength=740, justify="left",
+            text="VW/Audi CCZB (motor EA888 2.0 TSI, Bosch MED17.5) - descoberto por diff entre "
+                 "arquivos ORI/STEP1/STEP2 reais. STG1 e STG2 são dois patches quase idênticos "
+                 "(a diferença entre os dois é de ~12 bytes de calibração). O modo 'parcial (OBD)' "
+                 "só existe pra STG1 - não temos exemplo real de gravação parcial pra STG2, "
+                 "então use 'completo (bancada)' nesse caso. Validado só por diff dos arquivos "
+                 "fornecidos, nunca testado em bancada real.",
+        ).pack(fill="x", padx=8, pady=8)
+
+        frm_bin = ttk.LabelFrame(tab4, text="1.  Arquivo do cliente (.bin/.ori/.mpc)")
+        frm_bin.pack(fill="x", **pad)
+        ttk.Entry(frm_bin, textvariable=self.cczb_bin_path, width=70).pack(side="left", padx=8, pady=8)
+        ttk.Button(frm_bin, text="Escolher...", command=self.choose_cczb_bin).pack(side="left")
+
+        frm_stage = ttk.LabelFrame(tab4, text="2.  Stage e tipo de gravação")
+        frm_stage.pack(fill="x", **pad)
+        ttk.Radiobutton(frm_stage, text="STG1", variable=self.cczb_stage,
+                         value="stg1").pack(side="left", padx=8, pady=8)
+        ttk.Radiobutton(frm_stage, text="STG2", variable=self.cczb_stage,
+                         value="stg2").pack(side="left", padx=(0, 20), pady=8)
+        ttk.Radiobutton(frm_stage, text="Completo (bancada)", variable=self.cczb_mode,
+                         value="full").pack(side="left", padx=8, pady=8)
+        ttk.Radiobutton(frm_stage, text="Parcial (OBD) - só STG1", variable=self.cczb_mode,
+                         value="partial").pack(side="left", padx=8, pady=8)
+
+        frm_action = ttk.Frame(tab4)
+        frm_action.pack(fill="x", **pad)
+        ttk.Button(frm_action, text="Checar", command=self.on_cczb_check).pack(side="left")
+        ttk.Button(frm_action, text="Aplicar e salvar como...", style="Accent.TButton",
+                   command=self.on_cczb_apply).pack(side="left", padx=(8, 0))
 
     # ------------------------------------------------------------ helpers --
     def _check_server(self):
@@ -804,6 +846,66 @@ class App(tk.Tk):
         self.status.set(f"OK - salvo em {output_path}")
         messagebox.showinfo("Sucesso", f"Arquivo gerado:\n{output_path}\n\nLembre-se: BMW B58 é "
                              "experimental, nunca testado em bancada. Confira com cuidado antes "
+                             "de gravar numa ECU real.")
+
+    def choose_cczb_bin(self):
+        self._choose_file("Escolha o .bin/.ori/.mpc do cliente (CCZB MED17.5)",
+                           [("BIN files", "*.bin;*.ori;*.mpc;*.mod"), ("Todos", "*.*")],
+                           "last_dir_cczb", self.cczb_bin_path)
+
+    def on_cczb_check(self):
+        if not self.cczb_bin_path.get():
+            messagebox.showwarning("Atenção", "Escolha o arquivo primeiro.")
+            return
+        try:
+            data = Path(self.cczb_bin_path.get()).read_bytes()
+        except Exception as e:
+            messagebox.showerror("Erro", str(e))
+            return
+        ok, detail = cczb_patch.check_original(data, self.cczb_stage.get(), self.cczb_mode.get())
+        self.status.set(detail)
+        if ok:
+            messagebox.showinfo("OK", detail)
+        else:
+            messagebox.showwarning("Atenção", detail)
+
+    def on_cczb_apply(self):
+        if not self.cczb_bin_path.get():
+            messagebox.showwarning("Atenção", "Escolha o arquivo primeiro.")
+            return
+        input_bin = self.cczb_bin_path.get()
+        stage = self.cczb_stage.get()
+        mode = self.cczb_mode.get()
+
+        output_path = filedialog.asksaveasfilename(
+            title="Salvar bin com patch aplicado",
+            defaultextension=".bin",
+            filetypes=[("BIN files", "*.bin")],
+            initialfile=Path(input_bin).stem + f"_{stage}.bin",
+        )
+        if not output_path:
+            return
+
+        # sem chamada de rede - igual ao B58, e so leitura/escrita local e
+        # manipulacao de bytearray em memoria (~1.5MB), roda em milissegundos.
+        try:
+            data = Path(input_bin).read_bytes()
+            patched = cczb_patch.apply(data, stage, mode)
+            Path(output_path).write_bytes(patched)
+            log_apply(input_bin=input_bin, output_bin=output_path, hardware="VW/Audi CCZB (MED17.5)",
+                      software_code=f"{stage}/{mode}", patches=[f"cczb_{stage}_{mode}"], mode=mode,
+                      success=True, detail="CCZB MED17.5 (experimental)")
+        except Exception as e:
+            log_apply(input_bin=input_bin, output_bin=output_path, hardware="VW/Audi CCZB (MED17.5)",
+                      software_code=f"{stage}/{mode}", patches=[f"cczb_{stage}_{mode}"], mode=mode,
+                      success=False, detail=str(e))
+            self.status.set("Falha ao aplicar.")
+            messagebox.showerror("Erro", str(e))
+            return
+
+        self.status.set(f"OK - salvo em {output_path}")
+        messagebox.showinfo("Sucesso", f"Arquivo gerado:\n{output_path}\n\nLembre-se: CCZB MED17.5 "
+                             "é experimental, nunca testado em bancada. Confira com cuidado antes "
                              "de gravar numa ECU real.")
 
     def on_edc_identify(self):
