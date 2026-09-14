@@ -20,6 +20,7 @@ from paths import PROJECT_DIR
 from state import load_state, save_state
 from audit import log_apply
 from edc17_maps import EDC17_TABLE_GROUPS, read_all_slots, is_all_zero
+import b58_patch
 from map_switch_data import (
     MAP_SWITCH_TABLES, read_global_params, read_rpm_limiter,
     RAL_TABLES, read_ral_global, read_ral_enabled,
@@ -140,6 +141,8 @@ class App(tk.Tk):
         self.edc_group = tk.StringVar(value="")
         self.edc_slot = tk.IntVar(value=1)
         self._edc_decoded: dict = {}
+        self.b58_bin_path = tk.StringVar()
+        self.b58_family = tk.StringVar(value="3076")
         self._sim_data: bytes | None = None
         self._sim_data_path: str | None = None
         self._sim_params: dict | None = None
@@ -220,11 +223,14 @@ class App(tk.Tk):
 
         tab1 = ttk.Frame(notebook)
         tab2 = ttk.Frame(notebook)
+        tab3 = ttk.Frame(notebook)
         notebook.add(tab1, text="  Simos18 — Multimapa  ")
         notebook.add(tab2, text="  EDC17 (Amarok V6) — Teste  ")
+        notebook.add(tab3, text="  BMW B58 — Teste  ")
 
         self._build_simos_tab(tab1, pad)
         self._build_edc17_tab(tab2, pad)
+        self._build_b58_tab(tab3, pad)
 
     def _build_simos_tab(self, tab1, pad):
         frm_bin = ttk.LabelFrame(tab1, text="1.  Arquivo do cliente (.bin)")
@@ -358,6 +364,38 @@ class App(tk.Tk):
         ttk.Label(frm_maps, text="Valores brutos (escala Nm/rpm real ainda não confirmada) — "
                                   "primeira coluna é o eixo Y, demais colunas são o eixo X.",
                   style="Muted.TLabel").pack(anchor="w", padx=8, pady=(0, 8))
+
+    def _build_b58_tab(self, tab3, pad):
+        warn = ttk.LabelFrame(tab3, text="⚠ Experimental")
+        warn.pack(fill="x", **pad)
+        ttk.Label(
+            warn, style="Muted.TLabel", wraplength=740, justify="left",
+            text="BMW B58 (Bosch MEVD17.2.x) - descoberto por diff entre 5 pares original/"
+                 "MapSwitchBase reais (duas famílias de calibração, prefixo de software code "
+                 "3076xxxxxx e 3081xxxxxx). O multimapa é um bloco único gravado numa área que "
+                 "vem vazia (0xC3) de fábrica - o programa recusa gravar se essa área já tiver "
+                 "algo. Validado só por diff dos arquivos fornecidos, nunca testado em bancada "
+                 "real. Escolha a família certa pro software code do cliente (olhe os 6 dígitos "
+                 "depois do prefixo 000030 no nome do arquivo/projeto).",
+        ).pack(fill="x", padx=8, pady=8)
+
+        frm_bin = ttk.LabelFrame(tab3, text="1.  Arquivo do cliente (.bin)")
+        frm_bin.pack(fill="x", **pad)
+        ttk.Entry(frm_bin, textvariable=self.b58_bin_path, width=70).pack(side="left", padx=8, pady=8)
+        ttk.Button(frm_bin, text="Escolher...", command=self.choose_b58_bin).pack(side="left")
+
+        frm_family = ttk.LabelFrame(tab3, text="2.  Família de calibração")
+        frm_family.pack(fill="x", **pad)
+        ttk.Radiobutton(frm_family, text="3076xxxxxx", variable=self.b58_family,
+                         value="3076").pack(side="left", padx=8, pady=8)
+        ttk.Radiobutton(frm_family, text="3081xxxxxx", variable=self.b58_family,
+                         value="3081").pack(side="left", padx=8, pady=8)
+
+        frm_action = ttk.Frame(tab3)
+        frm_action.pack(fill="x", **pad)
+        ttk.Button(frm_action, text="Checar", command=self.on_b58_check).pack(side="left")
+        ttk.Button(frm_action, text="Aplicar e salvar como...", style="Accent.TButton",
+                   command=self.on_b58_apply).pack(side="left", padx=(8, 0))
 
     # ------------------------------------------------------------ helpers --
     def _check_server(self):
@@ -707,6 +745,66 @@ class App(tk.Tk):
     def choose_edc_patch(self):
         self._choose_file("Escolha o patch .btp", [("BTP files", "*.btp"), ("Todos", "*.*")],
                            "last_dir_edc17_patch", self.edc_patch_path)
+
+    def choose_b58_bin(self):
+        self._choose_file("Escolha o .bin do cliente (BMW B58)", [("BIN files", "*.bin"), ("Todos", "*.*")],
+                           "last_dir_b58", self.b58_bin_path)
+
+    def on_b58_check(self):
+        if not self.b58_bin_path.get():
+            messagebox.showwarning("Atenção", "Escolha o arquivo .bin primeiro.")
+            return
+        try:
+            data = Path(self.b58_bin_path.get()).read_bytes()
+        except Exception as e:
+            messagebox.showerror("Erro", str(e))
+            return
+        ok, detail = b58_patch.check_original(data)
+        self.status.set(detail)
+        if ok:
+            messagebox.showinfo("OK", detail)
+        else:
+            messagebox.showwarning("Atenção", detail)
+
+    def on_b58_apply(self):
+        if not self.b58_bin_path.get():
+            messagebox.showwarning("Atenção", "Escolha o arquivo .bin primeiro.")
+            return
+        input_bin = self.b58_bin_path.get()
+        family = self.b58_family.get()
+
+        output_path = filedialog.asksaveasfilename(
+            title="Salvar bin com patch aplicado",
+            defaultextension=".bin",
+            filetypes=[("BIN files", "*.bin")],
+            initialfile=Path(input_bin).stem + "_multimapa.bin",
+        )
+        if not output_path:
+            return
+
+        # sem chamada de rede aqui - e so leitura/escrita local de arquivo e
+        # manipulacao de bytearray em memoria (~8MB), roda em milissegundos,
+        # entao nao precisa de thread de fundo como apply/identify do
+        # servico HTTP (Simos18/EDC17).
+        try:
+            data = Path(input_bin).read_bytes()
+            patched = b58_patch.apply(data, family)
+            Path(output_path).write_bytes(patched)
+            log_apply(input_bin=input_bin, output_bin=output_path, hardware="BMW B58 (MEVD17.2.x)",
+                      software_code=family, patches=[f"b58_switch_{family}"], mode="local",
+                      success=True, detail="B58 (experimental)")
+        except Exception as e:
+            log_apply(input_bin=input_bin, output_bin=output_path, hardware="BMW B58 (MEVD17.2.x)",
+                      software_code=family, patches=[f"b58_switch_{family}"], mode="local",
+                      success=False, detail=str(e))
+            self.status.set("Falha ao aplicar.")
+            messagebox.showerror("Erro", str(e))
+            return
+
+        self.status.set(f"OK - salvo em {output_path}")
+        messagebox.showinfo("Sucesso", f"Arquivo gerado:\n{output_path}\n\nLembre-se: BMW B58 é "
+                             "experimental, nunca testado em bancada. Confira com cuidado antes "
+                             "de gravar numa ECU real.")
 
     def on_edc_identify(self):
         if not self.edc_bin_path.get():

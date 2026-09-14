@@ -131,6 +131,8 @@ cd $base
   --icon "$base\gui\icon.ico" `
   --add-data "$base\gui\icon.ico;." `
   --add-data "$base\gui\icon_header.png;." `
+  --add-data "$base\gui\data\b58_switch_3076.bin;data" `
+  --add-data "$base\gui\data\b58_switch_3081.bin;data" `
   --distpath dist --workpath build_tmp --specpath build_tmp "$base\gui\app.py"
 
 Copy-Item "dist\TruckPerformance-Multimapa.exe" -Destination "C:\Users\Avell\Desktop\TruckPerformance-Multimapa.exe" -Force
