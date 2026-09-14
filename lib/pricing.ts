@@ -4,6 +4,10 @@ export function formatBRL(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+export function formatOrderValue(value: number) {
+  return value > 0 ? formatBRL(value) : "Aguardando valor";
+}
+
 export function calculateSubtotal(stageId: string, optionIds: string[]) {
   const stage = getStage(stageId);
   const stageTotal = stage?.preco ?? 0;

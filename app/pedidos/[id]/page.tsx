@@ -3,7 +3,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import { OrderStatusBadge, PaymentStatusBadge } from "@/components/StatusBadge";
 import { StatusTimeline } from "@/components/StatusTimeline";
-import { formatBRL } from "@/lib/pricing";
+import { formatOrderValue } from "@/lib/pricing";
 import { createClient } from "@/lib/supabase/server";
 import { DownloadPanel } from "./DownloadPanel";
 import { OrderChat } from "@/components/OrderChat";
@@ -73,7 +73,7 @@ export default async function PedidoDetailPage({ params }: { params: { id: strin
                 <Info label="Placa" value={veiculo?.plate ?? "—"} mono />
                 <Info label="ECU" value={veiculo?.ecu_model ?? "—"} mono />
                 <Info label="Serviço" value={order.requested_service} />
-                <Info label="Valor total" value={formatBRL(Number(order.total_price))} />
+                <Info label="Valor total" value={formatOrderValue(Number(order.total_price))} />
               </div>
 
               {order.order_items?.length > 0 && (
