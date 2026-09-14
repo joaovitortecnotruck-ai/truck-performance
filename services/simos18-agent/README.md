@@ -136,6 +136,13 @@ cd $base
   --distpath dist --workpath build_tmp --specpath build_tmp "$base\gui\app.py"
 
 Copy-Item "dist\TruckPerformance-Multimapa.exe" -Destination "C:\Users\Avell\Desktop\TruckPerformance-Multimapa.exe" -Force
+# copia pras DUAS pastas "Desktop" que existem nesta maquina (o OneDrive
+# parece mostrar C:\Users\Avell\OneDrive\Desktop como area de trabalho de
+# verdade, mesmo o Windows registrando C:\Users\Avell\Desktop como oficial
+# via [Environment]::GetFolderPath("Desktop")) - ja causou confusao antes
+# (ver nota do PROJECT_DIR abaixo), entao manda pras duas pra nao depender
+# de qual delas esta "certa" nesse momento.
+Copy-Item "dist\TruckPerformance-Multimapa.exe" -Destination "C:\Users\Avell\OneDrive\Desktop\TruckPerformance-Multimapa.exe" -Force -ErrorAction SilentlyContinue
 ```
 
 Nota: o caminho do projeto (`$base` aqui, e `PROJECT_DIR` em `gui/paths.py`) já
