@@ -243,7 +243,7 @@ class BTP:
 		if originalhwKey == "" or originalhwValue != modifiedhwValue:
 			return ReturnType.HW_DOES_NOT_MATCH
 
-		if originalBin.softwareCode() != originalBin.softwareCode():
+		if originalBin.softwareCode() != modifiedBin.softwareCode():
 			return ReturnType.SOFT_DOES_NOT_MATCH
 
 		self.data = bytearray(BTP_HEADER_SIZE)

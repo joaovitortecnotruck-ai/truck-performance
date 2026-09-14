@@ -13,6 +13,7 @@ Run:
 Every endpoint except /health requires:
     Authorization: Bearer <API_KEY>
 """
+import hmac
 import shutil
 import tempfile
 from pathlib import Path
@@ -44,7 +45,7 @@ def require_api_key(authorization: Optional[str] = Header(default=None)) -> None
     if not config.API_KEY:
         raise HTTPException(status_code=500, detail="Server misconfigured: API_KEY is not set")
     expected = f"Bearer {config.API_KEY}"
-    if authorization != expected:
+    if not authorization or not hmac.compare_digest(authorization, expected):
         raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
 
 

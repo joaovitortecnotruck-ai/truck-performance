@@ -3,9 +3,10 @@ de patch - pra poder responder depois "o que eu apliquei nesse carro e
 quando". Fica em logs/audit.jsonl, ao lado do .env."""
 import json
 from datetime import datetime
-from pathlib import Path
 
-AUDIT_PATH = Path(r"C:\Users\Avell\OneDrive\Desktop\truck-performance\services\simos18-agent\logs\audit.jsonl")
+from paths import PROJECT_DIR
+
+AUDIT_PATH = PROJECT_DIR / "logs" / "audit.jsonl"
 
 
 def log_apply(*, input_bin, output_bin, hardware, software_code, patches, mode, success, detail=""):

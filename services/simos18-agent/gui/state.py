@@ -3,9 +3,10 @@ nao e configuracao do servico, so conveniencia entre uma abertura e outra
 do programa. Fica ao lado do .env, fora da pasta temporaria do PyInstaller
 (que e apagada a cada execucao)."""
 import json
-from pathlib import Path
 
-STATE_PATH = Path(r"C:\Users\Avell\OneDrive\Desktop\truck-performance\services\simos18-agent\gui_state.json")
+from paths import PROJECT_DIR
+
+STATE_PATH = PROJECT_DIR / "gui_state.json"
 
 
 def load_state() -> dict:

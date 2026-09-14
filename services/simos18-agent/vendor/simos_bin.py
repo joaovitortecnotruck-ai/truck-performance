@@ -238,14 +238,14 @@ class SimosBIN:
 			if data_size in value.binSizeList():
 				box_code = self.data[value.boxCodeStart : value.boxCodeStart + 11].strip()
 
-				if box_code[0] != 0x00:
+				if box_code and box_code[0] != 0x00:
 					return key, value
 
 			elif data_size == value.calBlock().length:
 				box_code_pos = value.boxCodeStart - value.calBlock().binPosition
 				box_code = self.data[box_code_pos : box_code_pos + 11].strip()
 
-				if box_code[0] != 0x00:
+				if box_code and box_code[0] != 0x00:
 					return key, value
 
 			elif data_size == value.ghidraSize:

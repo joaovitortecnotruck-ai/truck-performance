@@ -193,6 +193,16 @@ def patchApply(type, binFileName, patchFileNames, outputFileName, dataMode, log)
     if softwareCode is not None:
         log("Software code [" + softwareCode + "]")
 
+    # se o "bloco de calibracao" desse hardware e o arquivo inteiro (layout
+    # real desconhecido - ver vendor/simos_bin.py), o modo IGNORE nao tem
+    # como preservar so uma parte: ele acaba nao escrevendo nada. Avisa em
+    # vez de deixar isso passar batido como "Successful".
+    if dataMode == DataMode.IGNORE and type in (FunctionType.FUNC_ADD, FunctionType.FUNC_REMOVE):
+        calBlock = hwValue.calBlock()
+        if calBlock.binPosition == 0 and calBlock.length >= len(patchBin.data):
+            log("AVISO: para o hardware [" + hwKey + "] o modo ignore nao escreve nada "
+                "(o bloco de calibracao cobre o arquivo inteiro) - use --mode force")
+
     if type != FunctionType.FUNC_CHECK:
         log("Output BIN [" + outputFileName + "]")
 
@@ -257,6 +267,7 @@ def _patchSubFunction(type, patchFileName, bin, dataMode, log):
     # compare file size
     if patch.header.fileSize != len(bin.data):
         log("Filesize mismatch [" + str(len(bin.data)) + ":" + str(patch.header.fileSize) + "]")
+        return ReturnType.INVALID_PARAM
 
     # do function
     if type == FunctionType.FUNC_CHECK:

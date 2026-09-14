@@ -16,6 +16,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from patch_labels import friendly_label
+from paths import PROJECT_DIR
 from state import load_state, save_state
 from audit import log_apply
 from edc17_maps import EDC17_TABLE_GROUPS, read_all_slots, is_all_zero
@@ -26,8 +27,8 @@ from map_switch_data import (
 
 BASE_URL = "http://127.0.0.1:8787"
 
-# Caminho fixo do .env no PC do usuário (onde o serviço/ agente vive).
-ENV_PATH = Path(r"C:\Users\Avell\OneDrive\Desktop\truck-performance\services\simos18-agent\.env")
+# Onde o serviço/agente vive neste PC (fonte única em paths.py).
+ENV_PATH = PROJECT_DIR / ".env"
 
 # Paleta (bate com o icone: fundo escuro + laranja de destaque)
 BG = "#14161c"
@@ -56,17 +57,27 @@ def read_api_key() -> str:
     return ""
 
 
-def multipart_request(path: str, fields: dict, files: dict, api_key: str, method: str = "POST"):
-    """fields: {name: str}. files: {name: (filename, filepath)}. Returns (status, bytes)."""
+def multipart_request(path: str, fields: list, files: list, api_key: str,
+                       method: str = "POST", timeout: int = 120):
+    """Builds and sends one multipart/form-data request. The single place
+    that does this - every /identify, /apply, /create call goes through
+    here instead of each hand-rolling its own boundary/body.
+
+    fields: list of (name, value) pairs - a name may repeat (e.g. multiple
+            'patch_names' fields to apply more than one patch at once).
+    files:  list of (field_name, filename, filepath) tuples - a field_name
+            may repeat too (e.g. multiple 'patch_files' uploads).
+    Returns (status_code, response_bytes).
+    """
     boundary = uuid.uuid4().hex
     body = bytearray()
 
-    for name, value in fields.items():
+    for name, value in fields:
         body += f"--{boundary}\r\n".encode()
         body += f'Content-Disposition: form-data; name="{name}"\r\n\r\n'.encode()
         body += f"{value}\r\n".encode()
 
-    for name, (filename, filepath) in files.items():
+    for name, filename, filepath in files:
         body += f"--{boundary}\r\n".encode()
         body += f'Content-Disposition: form-data; name="{name}"; filename="{filename}"\r\n'.encode()
         body += b"Content-Type: application/octet-stream\r\n\r\n"
@@ -85,7 +96,7 @@ def multipart_request(path: str, fields: dict, files: dict, api_key: str, method
         },
     )
     try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             return resp.status, resp.read()
     except urllib.error.HTTPError as e:
         return e.code, e.read()
@@ -353,28 +364,63 @@ class App(tk.Tk):
         def run():
             try:
                 urllib.request.urlopen(f"{BASE_URL}/health", timeout=3)
-                self.status.set("Serviço local conectado.")
+                self.after(0, lambda: self.status.set("Serviço local conectado."))
             except Exception:
-                self.status.set(
+                self.after(0, lambda: self.status.set(
                     "Não consegui falar com o serviço local (127.0.0.1:8787). "
                     "Ele está rodando? (deveria subir sozinho no login)"
-                )
+                ))
         threading.Thread(target=run, daemon=True).start()
 
     def _on_mode_change(self, *_args):
         self._state["last_mode"] = self.mode.get()
         save_state(self._state)
 
-    def choose_bin(self):
+    def _choose_file(self, title: str, filetypes: list, state_key: str, target_var: tk.StringVar) -> str:
+        """Abre um dialogo de escolha de arquivo, lembrando a ultima pasta
+        usada por state_key. Compartilhado entre as abas Simos18 e EDC17."""
         path = filedialog.askopenfilename(
-            title="Escolha o .bin do cliente",
-            initialdir=self._state.get("last_dir") or None,
-            filetypes=[("BIN files", "*.bin"), ("Todos", "*.*")],
+            title=title,
+            initialdir=self._state.get(state_key) or None,
+            filetypes=filetypes,
         )
         if path:
-            self.bin_path.set(path)
-            self._state["last_dir"] = str(Path(path).parent)
+            target_var.set(path)
+            self._state[state_key] = str(Path(path).parent)
             save_state(self._state)
+        return path
+
+    def choose_bin(self):
+        self._choose_file("Escolha o .bin do cliente", [("BIN files", "*.bin"), ("Todos", "*.*")],
+                           "last_dir", self.bin_path)
+
+    def _identify_async(self, bin_path: str, hw_var: tk.StringVar, sw_var: tk.StringVar,
+                         status_prefix: str, on_done):
+        """Chama /identify numa thread de fundo (a chamada de rede pode
+        demorar pra um bin grande) e só mexe em widgets de volta na thread
+        principal via self.after - Tkinter não é thread-safe, então nenhum
+        StringVar.set/Listbox/Canvas/messagebox pode rodar direto na
+        thread de fundo. Compartilhado entre a aba Simos18 e a aba EDC17."""
+        self.status.set(f"{status_prefix}...")  # ainda na thread principal (chamada pelo botao)
+
+        def run():
+            status, data = multipart_request(
+                "/identify", [], [("bin", Path(bin_path).name, bin_path)], self.api_key
+            )
+
+            def finish():
+                if status != 200:
+                    self.status.set("Falha ao identificar.")
+                    messagebox.showerror("Erro", data.decode(errors="replace"))
+                    return
+                info = json.loads(data)
+                hw_var.set(info["hardware"])
+                sw_var.set(info["software_code"])
+                on_done(info)
+
+            self.after(0, finish)
+
+        threading.Thread(target=run, daemon=True).start()
 
     def on_identify(self):
         if not self.bin_path.get():
@@ -384,26 +430,14 @@ class App(tk.Tk):
             messagebox.showerror("Erro", f"Não achei API_KEY em {ENV_PATH}")
             return
 
-        def run():
-            self.status.set("Identificando...")
-            status, data = multipart_request(
-                "/identify", {}, {"bin": (Path(self.bin_path.get()).name, self.bin_path.get())}, self.api_key
-            )
-            if status != 200:
-                self.status.set("Falha ao identificar.")
-                messagebox.showerror("Erro", data.decode(errors="replace"))
-                return
-
-            info = json.loads(data)
-            self.hw_code.set(info["hardware"])
-            self.software_code.set(info["software_code"])
+        def on_done(info):
             self.hw_short = "".join(ch for ch in info["software_code"] if ch.isalnum())[-3:]
             self.status.set("Identificado. Buscando patches e XDFs disponíveis...")
             self._load_patches(info["software_code"])
             self._load_xdf(info["software_code"])
             self._refresh_sim_data()
 
-        threading.Thread(target=run, daemon=True).start()
+        self._identify_async(self.bin_path.get(), self.hw_code, self.software_code, "Identificando", on_done)
 
     def _refresh_sim_data(self):
         """Recarrega os bytes do bin atual pro painel (seção 6) e redesenha."""
@@ -453,6 +487,16 @@ class App(tk.Tk):
             return
         if self._sim_params is None:
             c.create_text(w / 2, h / 2, fill=MUTED, font=("Segoe UI", 10), text="Não consegui ler o arquivo.")
+            return
+
+        # Timeout/min_rpm/min_pedal/target_rpm todos zerados e um forte indicio
+        # de que o SwitchPatch nao foi aplicado nesse arquivo - sem isso os
+        # numeros abaixo nao significam nada (ver gui/map_switch_data.py).
+        if all(v["value"] == 0 for v in self._sim_params.values()):
+            c.create_text(w / 2, h / 2 - 10, fill="#e05c4a", font=("Segoe UI", 11, "bold"),
+                           text="Esse arquivo parece NÃO ter o SwitchPatch aplicado")
+            c.create_text(w / 2, h / 2 + 16, fill=MUTED, font=("Segoe UI", 8),
+                           text="(todos os parâmetros de troca de mapa leram zero - aplique o patch primeiro)")
             return
 
         rpm = self.sim_rpm.get()
@@ -635,8 +679,9 @@ class App(tk.Tk):
         if not output_path:
             return
 
+        self.status.set(f"Baixando {entry['name']}...")
+
         def run():
-            self.status.set(f"Baixando {entry['name']}...")
             req = urllib.request.Request(
                 f"{BASE_URL}/xdf/download?path={urllib.parse.quote(entry['path'])}",
                 headers={"Authorization": f"Bearer {self.api_key}"},
@@ -644,35 +689,24 @@ class App(tk.Tk):
             try:
                 with urllib.request.urlopen(req, timeout=30) as resp:
                     Path(output_path).write_bytes(resp.read())
-                self.status.set(f"XDF salvo em {output_path}")
+                self.after(0, lambda: self.status.set(f"XDF salvo em {output_path}"))
             except Exception as e:
-                self.status.set("Falha ao baixar XDF.")
-                messagebox.showerror("Erro", str(e))
+                def finish():
+                    self.status.set("Falha ao baixar XDF.")
+                    messagebox.showerror("Erro", str(e))
+                self.after(0, finish)
 
         threading.Thread(target=run, daemon=True).start()
 
     # ------------------------------------------------------- aba EDC17 --
     def choose_edc_bin(self):
-        path = filedialog.askopenfilename(
-            title="Escolha o .bin/.ori do cliente (EDC17CP54)",
-            initialdir=self._state.get("last_dir_edc17") or None,
-            filetypes=[("BIN/ORI files", "*.bin *.ori"), ("Todos", "*.*")],
-        )
-        if path:
-            self.edc_bin_path.set(path)
-            self._state["last_dir_edc17"] = str(Path(path).parent)
-            save_state(self._state)
+        self._choose_file("Escolha o .bin/.ori do cliente (EDC17CP54)",
+                           [("BIN/ORI files", "*.bin *.ori"), ("Todos", "*.*")],
+                           "last_dir_edc17", self.edc_bin_path)
 
     def choose_edc_patch(self):
-        path = filedialog.askopenfilename(
-            title="Escolha o patch .btp",
-            initialdir=self._state.get("last_dir_edc17_patch") or None,
-            filetypes=[("BTP files", "*.btp"), ("Todos", "*.*")],
-        )
-        if path:
-            self.edc_patch_path.set(path)
-            self._state["last_dir_edc17_patch"] = str(Path(path).parent)
-            save_state(self._state)
+        self._choose_file("Escolha o patch .btp", [("BTP files", "*.btp"), ("Todos", "*.*")],
+                           "last_dir_edc17_patch", self.edc_patch_path)
 
     def on_edc_identify(self):
         if not self.edc_bin_path.get():
@@ -682,22 +716,11 @@ class App(tk.Tk):
             messagebox.showerror("Erro", f"Não achei API_KEY em {ENV_PATH}")
             return
 
-        def run():
-            self.status.set("Identificando (EDC17)...")
-            status, data = multipart_request(
-                "/identify", {}, {"bin": (Path(self.edc_bin_path.get()).name, self.edc_bin_path.get())}, self.api_key
-            )
-            if status != 200:
-                self.status.set("Falha ao identificar.")
-                messagebox.showerror("Erro", data.decode(errors="replace"))
-                return
-
-            info = json.loads(data)
-            self.edc_hw_code.set(info["hardware"])
-            self.edc_software_code.set(info["software_code"])
+        def on_done(info):
             self.status.set("Identificado.")
 
-        threading.Thread(target=run, daemon=True).start()
+        self._identify_async(self.edc_bin_path.get(), self.edc_hw_code, self.edc_software_code,
+                              "Identificando (EDC17)", on_done)
 
     def on_edc_apply(self):
         if not self.edc_bin_path.get():
@@ -719,73 +742,51 @@ class App(tk.Tk):
         input_bin = self.edc_bin_path.get()
         patch_path = self.edc_patch_path.get()
 
+        hardware, software_code = self.edc_hw_code.get(), self.edc_software_code.get()
+        self.status.set("Aplicando patch (EDC17, modo force)...")
+
         def run():
-            self.status.set("Aplicando patch (EDC17, modo force)...")
             status, data = self._apply_with_uploaded_patch(input_bin, patch_path, "force", Path(output_path).name)
 
+            # so I/O de arquivo/log daqui pra baixo, ainda seguro na thread
+            # de fundo - widgets (status/messagebox) so na thread principal
             if status == 200:
                 Path(output_path).write_bytes(data)
-                self.status.set(f"OK - salvo em {output_path}")
-                log_apply(input_bin=input_bin, output_bin=output_path, hardware=self.edc_hw_code.get(),
-                          software_code=self.edc_software_code.get(), patches=[Path(patch_path).name],
+                log_apply(input_bin=input_bin, output_bin=output_path, hardware=hardware,
+                          software_code=software_code, patches=[Path(patch_path).name],
                           mode="force", success=True, detail="EDC17CP54 (experimental)")
-                messagebox.showinfo("Sucesso", f"Arquivo gerado:\n{output_path}\n\nLembre-se: EDC17CP54 é experimental, nunca testado em bancada. Confira com cuidado antes de gravar numa ECU real.")
+
+                def finish():
+                    self.status.set(f"OK - salvo em {output_path}")
+                    messagebox.showinfo("Sucesso", f"Arquivo gerado:\n{output_path}\n\nLembre-se: EDC17CP54 é experimental, nunca testado em bancada. Confira com cuidado antes de gravar numa ECU real.")
             else:
-                self.status.set("Falha ao aplicar.")
                 try:
                     err = json.loads(data)
                     detail = "\n".join(err.get("log", [str(err)]))
                 except Exception:
                     detail = data.decode(errors="replace")
-                log_apply(input_bin=input_bin, output_bin=output_path, hardware=self.edc_hw_code.get(),
-                          software_code=self.edc_software_code.get(), patches=[Path(patch_path).name],
+                log_apply(input_bin=input_bin, output_bin=output_path, hardware=hardware,
+                          software_code=software_code, patches=[Path(patch_path).name],
                           mode="force", success=False, detail=detail)
-                messagebox.showerror("Erro", detail)
+
+                def finish():
+                    self.status.set("Falha ao aplicar.")
+                    messagebox.showerror("Erro", detail)
+
+            self.after(0, finish)
 
         threading.Thread(target=run, daemon=True).start()
 
     def _apply_with_uploaded_patch(self, bin_path: str, patch_path: str, mode: str, output_name: str):
         """Igual ao /apply, mas envia o .btp direto (nao vem do catalogo do
         servidor - PATCHES_DIR) via multipart 'patch_files'."""
-        boundary = uuid.uuid4().hex
-        body = bytearray()
-
-        def add_field(name, value):
-            nonlocal body
-            body += f"--{boundary}\r\n".encode()
-            body += f'Content-Disposition: form-data; name="{name}"\r\n\r\n'.encode()
-            body += f"{value}\r\n".encode()
-
-        add_field("mode", mode)
-        add_field("output_name", output_name)
-
-        body += f"--{boundary}\r\n".encode()
-        body += f'Content-Disposition: form-data; name="bin"; filename="{Path(bin_path).name}"\r\n'.encode()
-        body += b"Content-Type: application/octet-stream\r\n\r\n"
-        body += Path(bin_path).read_bytes()
-        body += b"\r\n"
-
-        body += f"--{boundary}\r\n".encode()
-        body += f'Content-Disposition: form-data; name="patch_files"; filename="{Path(patch_path).name}"\r\n'.encode()
-        body += b"Content-Type: application/octet-stream\r\n\r\n"
-        body += Path(patch_path).read_bytes()
-        body += b"\r\n"
-        body += f"--{boundary}--\r\n".encode()
-
-        req = urllib.request.Request(
-            f"{BASE_URL}/apply",
-            data=bytes(body),
-            method="POST",
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": f"multipart/form-data; boundary={boundary}",
-            },
+        return multipart_request(
+            "/apply",
+            [("mode", mode), ("output_name", output_name)],
+            [("bin", Path(bin_path).name, bin_path), ("patch_files", Path(patch_path).name, patch_path)],
+            self.api_key,
+            timeout=180,
         )
-        try:
-            with urllib.request.urlopen(req, timeout=180) as resp:
-                return resp.status, resp.read()
-        except urllib.error.HTTPError as e:
-            return e.code, e.read()
 
     def on_edc_analyze(self):
         if not self.edc_bin_path.get() or not Path(self.edc_bin_path.get()).is_file():
@@ -880,70 +881,49 @@ class App(tk.Tk):
 
         input_bin = self.bin_path.get()
         mode = self.mode.get()
+        hardware, software_code = self.hw_code.get(), self.software_code.get()
+        self.status.set("Aplicando patch(es)...")
 
         def run():
-            self.status.set("Aplicando patch(es)...")
             fields = {"mode": mode, "output_name": Path(output_path).name}
             status, data = self._apply_multi(input_bin, selected, fields)
 
+            # so I/O de arquivo/log daqui pra baixo, ainda seguro na thread
+            # de fundo - widgets/canvas (status/bin_path/dashboard/messagebox)
+            # so na thread principal, via self.after
             if status == 200:
                 Path(output_path).write_bytes(data)
-                self.bin_path.set(output_path)
-                self._refresh_sim_data()
-                self.status.set(f"OK - salvo em {output_path}")
-                log_apply(input_bin=input_bin, output_bin=output_path, hardware=self.hw_code.get(),
-                          software_code=self.software_code.get(), patches=selected, mode=mode, success=True)
-                messagebox.showinfo("Sucesso", f"Arquivo gerado:\n{output_path}\n\nLembre-se: a próxima gravação na ECU precisa ser um flash completo.\n\nO painel (seção 6) já foi atualizado com este arquivo.")
+                log_apply(input_bin=input_bin, output_bin=output_path, hardware=hardware,
+                          software_code=software_code, patches=selected, mode=mode, success=True)
+
+                def finish():
+                    self.bin_path.set(output_path)
+                    self._refresh_sim_data()
+                    self.status.set(f"OK - salvo em {output_path}")
+                    messagebox.showinfo("Sucesso", f"Arquivo gerado:\n{output_path}\n\nLembre-se: a próxima gravação na ECU precisa ser um flash completo.\n\nO painel (seção 6) já foi atualizado com este arquivo.")
             else:
-                self.status.set("Falha ao aplicar.")
                 try:
                     err = json.loads(data)
                     detail = "\n".join(err.get("log", [str(err)]))
                 except Exception:
                     detail = data.decode(errors="replace")
-                log_apply(input_bin=input_bin, output_bin=output_path, hardware=self.hw_code.get(),
-                          software_code=self.software_code.get(), patches=selected, mode=mode, success=False, detail=detail)
-                messagebox.showerror("Erro", detail)
+                log_apply(input_bin=input_bin, output_bin=output_path, hardware=hardware,
+                          software_code=software_code, patches=selected, mode=mode, success=False, detail=detail)
+
+                def finish():
+                    self.status.set("Falha ao aplicar.")
+                    messagebox.showerror("Erro", detail)
+
+            self.after(0, finish)
 
         threading.Thread(target=run, daemon=True).start()
 
     def _apply_multi(self, bin_path: str, patch_names: list[str], fields: dict):
         """multipart/form-data com múltiplos campos 'patch_names' (um por patch)."""
-        boundary = uuid.uuid4().hex
-        body = bytearray()
-
-        def add_field(name, value):
-            nonlocal body
-            body += f"--{boundary}\r\n".encode()
-            body += f'Content-Disposition: form-data; name="{name}"\r\n\r\n'.encode()
-            body += f"{value}\r\n".encode()
-
-        for name in patch_names:
-            add_field("patch_names", name)
-        for key, value in fields.items():
-            add_field(key, value)
-
-        body += f"--{boundary}\r\n".encode()
-        body += f'Content-Disposition: form-data; name="bin"; filename="{Path(bin_path).name}"\r\n'.encode()
-        body += b"Content-Type: application/octet-stream\r\n\r\n"
-        body += Path(bin_path).read_bytes()
-        body += b"\r\n"
-        body += f"--{boundary}--\r\n".encode()
-
-        req = urllib.request.Request(
-            f"{BASE_URL}/apply",
-            data=bytes(body),
-            method="POST",
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": f"multipart/form-data; boundary={boundary}",
-            },
+        all_fields = [("patch_names", name) for name in patch_names] + list(fields.items())
+        return multipart_request(
+            "/apply", all_fields, [("bin", Path(bin_path).name, bin_path)], self.api_key, timeout=180,
         )
-        try:
-            with urllib.request.urlopen(req, timeout=180) as resp:
-                return resp.status, resp.read()
-        except urllib.error.HTTPError as e:
-            return e.code, e.read()
 
 
 if __name__ == "__main__":

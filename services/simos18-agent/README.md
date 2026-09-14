@@ -125,7 +125,7 @@ Pra gerar de novo o `TruckPerformance-Multimapa.exe` depois de editar
 `gui/app.py` (troque `$base` se o projeto estiver em outra pasta):
 
 ```powershell
-$base = "C:\Users\Avell\OneDrive\Desktop\truck-performance\services\simos18-agent"
+$base = "C:\Users\Avell\Desktop\truck-performance\services\simos18-agent"
 cd $base
 .\.venv\Scripts\python.exe -m PyInstaller --onefile --windowed --name "TruckPerformance-Multimapa" `
   --icon "$base\gui\icon.ico" `
@@ -133,8 +133,13 @@ cd $base
   --add-data "$base\gui\icon_header.png;." `
   --distpath dist --workpath build_tmp --specpath build_tmp "$base\gui\app.py"
 
-Copy-Item "dist\TruckPerformance-Multimapa.exe" -Destination "$env:USERPROFILE\OneDrive\Desktop\TruckPerformance-Multimapa.exe" -Force
+Copy-Item "dist\TruckPerformance-Multimapa.exe" -Destination "C:\Users\Avell\Desktop\TruckPerformance-Multimapa.exe" -Force
 ```
+
+Nota: o caminho do projeto (`$base` aqui, e `PROJECT_DIR` em `gui/paths.py`) já
+mudou de lugar uma vez nesta máquina (o OneDrive re-apontou o Desktop). Se
+mudar de novo, só precisa trocar em `gui/paths.py` - `state.py`, `audit.py`
+e `app.py` (via `ENV_PATH`) todos derivam dali.
 
 Nota: `--add-data`/`--icon` com caminho relativo dá erro quando
 `--specpath` é uma subpasta (o PyInstaller resolve relativo à pasta do
