@@ -3,7 +3,6 @@
 import { useMemo, useRef, useState } from "react";
 import { AlertTriangle, Check, FileUp, Info, X } from "lucide-react";
 import { clsx } from "clsx";
-import { formatBRL } from "@/lib/pricing";
 import { createOrder } from "./actions";
 
 const METODOS_LEITURA = ["OBD", "BENCH", "BOOT", "JTAG", "OUTRO"];
@@ -102,14 +101,6 @@ export function NovoPedidoForm({
   const stageAtual = services.find((s) => s.code === stage);
   const todosOpcionais = [...opcionais, ...emissoesOpcionais];
 
-  const stageTotal = stageAtual?.price ?? 0;
-  const optionsTotal = todosOpcionais.reduce((sum, code) => {
-    const s = services.find((s) => s.code === code);
-    return sum + (s?.price ?? 0);
-  }, 0);
-  const subtotal = stageTotal + optionsTotal;
-  const total = subtotal;
-
   function toggleOpcional(id: string) {
     setOpcionais((prev) => (prev.includes(id) ? prev.filter((o) => o !== id) : [...prev, id]));
   }
@@ -183,29 +174,24 @@ export function NovoPedidoForm({
                 type="button"
                 onClick={() => setStage(s.code)}
                 className={clsx(
-                  "flex items-start justify-between gap-3 rounded-[8px] border px-4 py-3.5 text-left transition-colors",
+                  "flex items-start gap-3 rounded-[8px] border px-4 py-3.5 text-left transition-colors",
                   stage === s.code
                     ? "border-accent bg-accent/10"
                     : "border-base-700 bg-base-800 hover:border-base-600"
                 )}
               >
-                <div className="flex items-start gap-3">
-                  <span
-                    className={clsx(
-                      "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2",
-                      stage === s.code ? "border-accent" : "border-base-600"
-                    )}
-                  >
-                    {stage === s.code && <span className="h-2 w-2 rounded-full bg-accent" />}
-                  </span>
-                  <div>
-                    <div className="text-sm font-medium text-ink-100">{s.name}</div>
-                    <div className="mt-0.5 text-[12px] text-ink-500">{s.description}</div>
-                  </div>
-                </div>
-                <span className="whitespace-nowrap font-display text-sm font-semibold text-ink-100">
-                  {s.price > 0 ? formatBRL(s.price) : "Sob consulta"}
+                <span
+                  className={clsx(
+                    "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2",
+                    stage === s.code ? "border-accent" : "border-base-600"
+                  )}
+                >
+                  {stage === s.code && <span className="h-2 w-2 rounded-full bg-accent" />}
                 </span>
+                <div>
+                  <div className="text-sm font-medium text-ink-100">{s.name}</div>
+                  <div className="mt-0.5 text-[12px] text-ink-500">{s.description}</div>
+                </div>
               </button>
             ))}
           </div>
@@ -219,7 +205,6 @@ export function NovoPedidoForm({
                 key={o.code}
                 nome={o.name}
                 descricao={o.description ?? ""}
-                preco={o.price}
                 checked={opcionais.includes(o.code)}
                 onToggle={() => toggleOpcional(o.code)}
               />
@@ -263,9 +248,6 @@ export function NovoPedidoForm({
                 <option value="euro6">Euro 6</option>
               </select>
             </label>
-            <p className="mt-1.5 text-[11px] text-ink-500">
-              O valor do serviço de SCR/ARLA muda conforme o padrão de emissões do veículo.
-            </p>
 
             <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
               {emissoesVisiveis.map((o) => (
@@ -273,7 +255,6 @@ export function NovoPedidoForm({
                   key={o.code}
                   nome={o.name}
                   descricao={o.description ?? ""}
-                  preco={o.price}
                   checked={emissoesOpcionais.includes(o.code)}
                   onToggle={() => toggleEmissao(o.code)}
                 />
@@ -360,9 +341,8 @@ export function NovoPedidoForm({
           <div className="mt-4 flex items-center justify-between text-sm">
             <span className="text-ink-500">Serviço principal</span>
           </div>
-          <div className="mt-1 flex items-center justify-between text-sm">
+          <div className="mt-1 flex items-center gap-1.5 text-sm">
             <span className="text-ink-100">{stageAtual?.name ?? "—"}</span>
-            <span className="text-ink-100">{formatBRL(stageTotal)}</span>
           </div>
 
           {todosOpcionais.length > 0 && (
@@ -374,37 +354,20 @@ export function NovoPedidoForm({
                 {services
                   .filter((o) => todosOpcionais.includes(o.code))
                   .map((o) => (
-                    <li key={o.code} className="flex items-center justify-between text-sm">
-                      <span className="flex items-center gap-1.5 text-ink-300">
-                        <Check className="h-3.5 w-3.5 text-ok" />
-                        {o.name}
-                      </span>
-                      <span className="text-ink-300">{formatBRL(o.price)}</span>
+                    <li key={o.code} className="flex items-center gap-1.5 text-sm">
+                      <Check className="h-3.5 w-3.5 text-ok" />
+                      <span className="text-ink-300">{o.name}</span>
                     </li>
                   ))}
               </ul>
             </>
           )}
 
-          <div className="mt-4 space-y-1.5 border-t border-base-800 pt-4 text-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-ink-500">Subtotal</span>
-              <span className="text-ink-100">{formatBRL(subtotal)}</span>
-            </div>
-          </div>
-
-          <div className="mt-3 flex items-center justify-between border-t border-base-800 pt-3">
-            <span className="font-display text-sm font-semibold uppercase tracking-wide text-ink-300">
-              Total
-            </span>
-            <span className="font-display text-2xl font-bold text-accent">{formatBRL(total)}</span>
-          </div>
-
           <div className="mt-4 flex items-start gap-2 rounded-[8px] border border-base-700 bg-base-800 p-3">
             <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-500" />
             <p className="text-[11px] leading-relaxed text-ink-500">
-              Os valores podem ser ajustados pela equipe Truck Performance antes da aprovação
-              final do pedido.
+              O valor do pedido será definido pela equipe Truck Performance após a análise do
+              arquivo, e ficará visível no seu pedido.
             </p>
           </div>
         </div>
@@ -491,13 +454,11 @@ function SelectField({
 function OptionRow({
   nome,
   descricao,
-  preco,
   checked,
   onToggle,
 }: {
   nome: string;
   descricao: string;
-  preco: number;
   checked: boolean;
   onToggle: () => void;
 }) {
@@ -506,27 +467,22 @@ function OptionRow({
       type="button"
       onClick={onToggle}
       className={clsx(
-        "flex items-start justify-between gap-3 rounded-[8px] border px-3.5 py-3 text-left transition-colors",
+        "flex items-start gap-2.5 rounded-[8px] border px-3.5 py-3 text-left transition-colors",
         checked ? "border-accent bg-accent/10" : "border-base-700 bg-base-800 hover:border-base-600"
       )}
     >
-      <div className="flex items-start gap-2.5">
-        <span
-          className={clsx(
-            "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border-2",
-            checked ? "border-accent bg-accent" : "border-base-600"
-          )}
-        >
-          {checked && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
-        </span>
-        <div>
-          <div className="text-[13px] font-medium text-ink-100">{nome}</div>
-          <div className="text-[11.5px] text-ink-500">{descricao}</div>
-        </div>
-      </div>
-      <span className="whitespace-nowrap text-[13px] text-ink-300">
-        {preco > 0 ? formatBRL(preco) : "—"}
+      <span
+        className={clsx(
+          "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border-2",
+          checked ? "border-accent bg-accent" : "border-base-600"
+        )}
+      >
+        {checked && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
       </span>
+      <div>
+        <div className="text-[13px] font-medium text-ink-100">{nome}</div>
+        <div className="text-[11.5px] text-ink-500">{descricao}</div>
+      </div>
     </button>
   );
 }

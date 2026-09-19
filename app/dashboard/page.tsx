@@ -4,7 +4,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import { StatCard } from "@/components/StatCard";
 import { OrderStatusBadge, PaymentStatusBadge } from "@/components/StatusBadge";
-import { formatBRL } from "@/lib/pricing";
+import { formatBRL, formatOrderValue } from "@/lib/pricing";
 import { createClient } from "@/lib/supabase/server";
 
 const CONCLUIDO = ["finalizado", "completed"];
@@ -131,7 +131,7 @@ export default async function DashboardPage({
                     <div className="flex items-center gap-4 sm:flex-col sm:items-end sm:gap-1.5">
                       <PaymentStatusBadge status={order.payment_status} />
                       <span className="font-display text-sm font-semibold text-ink-100">
-                        {formatBRL(Number(order.total_price))}
+                        {formatOrderValue(Number(order.total_price))}
                       </span>
                     </div>
                   </Link>

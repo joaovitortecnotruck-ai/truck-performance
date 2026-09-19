@@ -65,7 +65,6 @@ export async function createOrder(formData: FormData) {
     redirect("/novo-pedido?error=" + encodeURIComponent("Serviço principal inválido."));
   }
 
-  const totalPrice = servicos!.reduce((sum, s) => sum + Number(s.price), 0);
   const emissionsRelated = servicos!.some((s) => s.category === "emissions");
 
   let vehicle: { id: string } | null = vehicleId ? { id: vehicleId } : null;
@@ -104,7 +103,7 @@ export async function createOrder(formData: FormData) {
       vehicle_id: vehicle!.id,
       requested_service: requestedService,
       status: "received",
-      total_price: totalPrice,
+      total_price: 0,
       emissions_related: emissionsRelated,
       read_method: metodo || null,
       tool: equipamento && equipamento !== "Selecione" ? equipamento : null,
