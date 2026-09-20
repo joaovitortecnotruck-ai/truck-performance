@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { verifyTurnstile } from "@/lib/turnstile";
 
 export async function signup(formData: FormData) {
   const nome = String(formData.get("nome") ?? "").trim();
@@ -27,6 +28,9 @@ export async function signup(formData: FormData) {
   }
   if (senha !== senha2) {
     redirect("/cadastro?error=" + encodeURIComponent("As senhas não coincidem."));
+  }
+  if (!(await verifyTurnstile(formData.get("cf-turnstile-response"), "signup"))) {
+    redirect("/cadastro?error=" + encodeURIComponent("Falha na verificação de segurança. Tente novamente."));
   }
 
   const supabase = createClient();

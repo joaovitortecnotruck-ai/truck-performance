@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
+import { TurnstileWidget } from "@/components/TurnstileWidget";
 import { signup } from "./actions";
 
 export default function CadastroPage({
@@ -35,6 +36,10 @@ export default function CadastroPage({
             <Field label="Estado (opcional)" name="estado" placeholder="UF" />
             <Field label="Senha" name="senha" type="password" placeholder="••••••••" required minLength={6} />
             <Field label="Confirmar senha" name="senha2" type="password" placeholder="••••••••" required minLength={6} />
+
+            <div className="sm:col-span-2">
+              <TurnstileWidget action="signup" />
+            </div>
 
             <label className="flex items-start gap-2 text-[12.5px] text-ink-500 sm:col-span-2">
               <input

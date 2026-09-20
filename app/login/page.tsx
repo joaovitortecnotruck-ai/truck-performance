@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
+import { TurnstileWidget } from "@/components/TurnstileWidget";
 import { login } from "./actions";
 
 export default function LoginPage({
@@ -45,6 +46,8 @@ export default function LoginPage({
         <form action={login} className="mt-8 flex flex-col gap-4">
           <Field label="E-mail" type="email" name="email" placeholder="voce@empresa.com" required />
           <Field label="Senha" type="password" name="password" placeholder="••••••••" required />
+
+          <TurnstileWidget action="login" />
 
           <div className="flex items-center justify-between text-[13px]">
             <label className="flex items-center gap-2 text-ink-500">
