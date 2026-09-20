@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
 import { OrderStatusBadge, ORDER_STATUS_OPTIONS, PaymentStatusBadge } from "@/components/StatusBadge";
-import { formatBRL } from "@/lib/pricing";
+import { formatOrderValue } from "@/lib/pricing";
 
 interface PedidoRow {
   id: string;
@@ -104,7 +104,9 @@ export function OrdersTable({ pedidos }: { pedidos: PedidoRow[] }) {
                     <td className="px-5 py-3 text-ink-500">
                       {new Date(p.created_at).toLocaleDateString("pt-BR")}
                     </td>
-                    <td className="px-5 py-3 text-ink-100">{formatBRL(Number(p.total_price))}</td>
+                    <td className={`px-5 py-3 ${Number(p.total_price) > 0 ? "text-ink-100" : "font-medium text-warn"}`}>
+                      {formatOrderValue(Number(p.total_price))}
+                    </td>
                     <td className="px-5 py-3">
                       <PaymentStatusBadge status={p.payment_status} />
                     </td>

@@ -3,7 +3,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
 import { StatCard } from "@/components/StatCard";
 import { OrderStatusBadge } from "@/components/StatusBadge";
-import { formatBRL } from "@/lib/pricing";
+import { formatBRL, formatOrderValue } from "@/lib/pricing";
 import { createClient } from "@/lib/supabase/server";
 import { NotificationBell } from "@/components/admin/NotificationBell";
 import Link from "next/link";
@@ -113,7 +113,9 @@ export default async function AdminDashboardPage() {
                           {veiculo?.brand} {veiculo?.model}
                         </td>
                         <td className="px-5 py-3 text-ink-300">{p.requested_service}</td>
-                        <td className="px-5 py-3 text-ink-100">{formatBRL(Number(p.total_price))}</td>
+                        <td className={`px-5 py-3 ${Number(p.total_price) > 0 ? "text-ink-100" : "font-medium text-warn"}`}>
+                          {formatOrderValue(Number(p.total_price))}
+                        </td>
                         <td className="px-5 py-3">
                           <OrderStatusBadge status={p.status} />
                         </td>

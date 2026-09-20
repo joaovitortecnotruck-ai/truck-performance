@@ -20,6 +20,8 @@ const mono = IBM_Plex_Mono({
   variable: "--font-mono",
 });
 
+export const maxDuration = 30;
+
 export const metadata: Metadata = {
   title: "Truck Performance | Plataforma de Remapeamento",
   description:

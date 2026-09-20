@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
-import { formatBRL } from "@/lib/pricing";
+import { formatOrderValue } from "@/lib/pricing";
 import { createClient } from "@/lib/supabase/server";
 import { OrderStatusBadge, PaymentStatusBadge } from "@/components/StatusBadge";
 import { AdminOrderPanel } from "./AdminOrderPanel";
@@ -137,7 +137,9 @@ export default async function AdminPedidoDetailPage({
               </div>
               <div className="mt-4 flex items-center justify-between border-t border-base-800 pt-4">
                 <span className="text-sm text-ink-500">Valor total</span>
-                <span className="font-display text-lg font-semibold text-ink-100">{formatBRL(Number(order.total_price))}</span>
+                <span className={`font-display text-lg font-semibold ${Number(order.total_price) > 0 ? "text-ink-100" : "text-warn"}`}>
+                  {formatOrderValue(Number(order.total_price))}
+                </span>
               </div>
             </section>
 

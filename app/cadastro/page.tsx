@@ -27,12 +27,12 @@ export default function CadastroPage({
           <form action={signup} className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Nome completo" name="nome" placeholder="Seu nome" className="sm:col-span-2" required />
             <Field label="Empresa (opcional)" name="empresa" placeholder="Nome da empresa" className="sm:col-span-2" />
-            <Field label="CPF ou CNPJ" name="documento" placeholder="000.000.000-00" required />
             <Field label="E-mail" name="email" type="email" placeholder="voce@empresa.com" required />
-            <Field label="Telefone" name="telefone" placeholder="(00) 00000-0000" required />
             <Field label="WhatsApp" name="whatsapp" placeholder="(00) 00000-0000" required />
-            <Field label="Cidade" name="cidade" placeholder="Sua cidade" required />
-            <Field label="Estado" name="estado" placeholder="UF" required />
+            <Field label="CPF ou CNPJ (opcional)" name="documento" placeholder="000.000.000-00" />
+            <Field label="Telefone (opcional)" name="telefone" placeholder="(00) 00000-0000" />
+            <Field label="Cidade (opcional)" name="cidade" placeholder="Sua cidade" />
+            <Field label="Estado (opcional)" name="estado" placeholder="UF" />
             <Field label="Senha" name="senha" type="password" placeholder="••••••••" required minLength={6} />
             <Field label="Confirmar senha" name="senha2" type="password" placeholder="••••••••" required minLength={6} />
 

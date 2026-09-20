@@ -16,7 +16,7 @@ export async function signup(formData: FormData) {
   const senha2 = String(formData.get("senha2") ?? "");
   const aceite = formData.get("termos");
 
-  if (!nome || !documento || !email || !telefone || !whatsapp || !cidade || !estado || !senha) {
+  if (!nome || !email || !whatsapp || !senha) {
     redirect("/cadastro?error=" + encodeURIComponent("Preencha todos os campos obrigatórios."));
   }
   if (!aceite) {
@@ -54,11 +54,11 @@ export async function signup(formData: FormData) {
     .update({
       name: nome,
       company: empresa || null,
-      document: documento,
-      phone: telefone,
+      document: documento || null,
+      phone: telefone || null,
       whatsapp,
-      city: cidade,
-      state: estado,
+      city: cidade || null,
+      state: estado || null,
     })
     .eq("id", data.user.id);
 
