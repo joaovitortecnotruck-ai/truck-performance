@@ -1,11 +1,10 @@
-import { Gauge } from "lucide-react";
+import Image from "next/image";
 
 export function Logo({ compact = false }: { compact?: boolean }) {
   return (
     <div className="flex items-center gap-2.5">
-      <div className="flex h-9 w-9 items-center justify-center rounded-[6px] bg-accent shadow-glow">
-        <Gauge className="h-5 w-5 text-white" strokeWidth={2.5} />
-      </div>
+      <Image src="/logo-icon.png" alt="Truck Performance" width={36} height={36} className="h-9 w-9 rounded-[6px] shadow-glow" />
+
       {!compact && (
         <div className="leading-none">
           <div className="font-display text-[19px] font-bold uppercase tracking-wide text-ink-100">
