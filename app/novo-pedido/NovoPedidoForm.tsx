@@ -303,7 +303,6 @@ export function NovoPedidoForm({
               ref={fileInputRef}
               type="file"
               name="arquivoOriginal"
-              accept=".bin,.ori,.mod,.hex,.mpc,.eep,.zip,.rar"
               onChange={(e) => setArquivo(e.target.files?.[0] ?? null)}
               className="hidden"
             />
