@@ -7,6 +7,7 @@ import { OrderStatusBadge, PaymentStatusBadge } from "@/components/StatusBadge";
 import { AdminOrderPanel } from "./AdminOrderPanel";
 import { NotificationBell } from "@/components/admin/NotificationBell";
 import { OrderChat } from "@/components/OrderChat";
+import { VehicleFiles } from "@/components/VehicleFiles";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ const ACTION_LABEL: Record<string, string> = {
   pagamento_alterado: "Pagamento alterado",
   hw_sw_atualizado: "HW/SW atualizado",
   arquivo_modificado_enviado: "Arquivo modificado enviado",
+  download_liberado: "Novo download liberado",
 };
 
 export default async function AdminPedidoDetailPage({
@@ -46,8 +48,10 @@ export default async function AdminPedidoDetailPage({
 
   const veiculo = Array.isArray(order.vehicles) ? order.vehicles[0] : order.vehicles;
   const cliente = Array.isArray(order.profiles) ? order.profiles[0] : order.profiles;
-  const arquivoOriginal = order.files?.find((f: any) => f.file_type === "original") ?? null;
-  const arquivoModificado = order.files?.find((f: any) => f.file_type === "final") ?? null;
+  // mais recente primeiro: se o admin reenviar o modificado, vale o último
+  const arquivos = [...(order.files ?? [])].sort((a: any, b: any) => b.created_at.localeCompare(a.created_at));
+  const arquivoOriginal = arquivos.find((f: any) => f.file_type === "original") ?? null;
+  const arquivoModificado = arquivos.find((f: any) => f.file_type === "final") ?? null;
 
   let urlOriginal: string | null = null;
   if (arquivoOriginal) {
@@ -67,6 +71,12 @@ export default async function AdminPedidoDetailPage({
     .eq("order_id", order.id)
     .order("created_at", { ascending: false })
     .limit(20);
+
+  const { data: downloads } = await supabase
+    .from("download_logs")
+    .select("id, downloaded_at, ip_address, user_agent, files(original_name), profiles(name)")
+    .eq("order_id", order.id)
+    .order("downloaded_at", { ascending: false });
 
   const { data: aceites } = await supabase
     .from("term_acceptances")
@@ -142,6 +152,39 @@ export default async function AdminPedidoDetailPage({
                 </span>
               </div>
             </section>
+
+            <VehicleFiles
+              vehicle={veiculo}
+              orderNumber={order.order_number}
+              orderId={order.id}
+              clientId={order.client_id}
+              isAdmin
+            />
+
+            {downloads && downloads.length > 0 && (
+              <section className="rounded-card border border-base-800 bg-base-900 p-5 shadow-card">
+                <h2 className="mb-4 font-display text-sm font-semibold uppercase tracking-wide text-accent">
+                  Downloads do cliente
+                </h2>
+                <ul className="flex flex-col gap-2 text-sm">
+                  {downloads.map((d: any) => {
+                    const arq = Array.isArray(d.files) ? d.files[0] : d.files;
+                    const quem = Array.isArray(d.profiles) ? d.profiles[0] : d.profiles;
+                    return (
+                      <li key={d.id} className="flex items-center justify-between gap-3 text-ink-300">
+                        <span className="truncate font-mono text-[12px]" title={d.user_agent ?? ""}>
+                          {arq?.original_name ?? "Arquivo"}
+                        </span>
+                        <span className="shrink-0 text-[12px] text-ink-500">
+                          {quem?.name ?? "—"} · {new Date(d.downloaded_at).toLocaleString("pt-BR")}
+                          {d.ip_address ? ` · ${d.ip_address}` : ""}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            )}
 
             {aceites && aceites.length > 0 && (
               <section className="rounded-card border border-base-800 bg-base-900 p-5 shadow-card">

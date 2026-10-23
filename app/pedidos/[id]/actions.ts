@@ -10,13 +10,21 @@ export async function confirmDownload(formData: FormData) {
   const fileId = String(formData.get("fileId") ?? "");
   const termReadWriteId = String(formData.get("termReadWriteId") ?? "");
   const termEmissionsId = String(formData.get("termEmissionsId") ?? "");
-  const emissionsRelated = formData.get("emissionsRelated") === "true";
+  const voltar = (msg: string) => redirect(`/pedidos/${orderNumber}?error=` + encodeURIComponent(msg));
 
   const supabase = createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+
+  // vem do banco, não do formulário, para o cliente não pular o termo de emissões
+  const { data: pedido } = await supabase.from("orders").select("emissions_related").eq("id", orderId).maybeSingle();
+  const emissionsRelated = !!pedido?.emissions_related;
+
+  if (formData.get("aceiteLeitura") !== "on" || (emissionsRelated && formData.get("aceiteEmissoes") !== "on")) {
+    voltar("Aceite os termos para baixar o arquivo.");
+  }
 
   const forwardedFor = headers().get("x-forwarded-for");
   const ip = forwardedFor ? forwardedFor.split(",")[0].trim() : null;
@@ -33,14 +41,23 @@ export async function confirmDownload(formData: FormData) {
     await supabase.from("term_acceptances").insert(registros);
   }
 
-  const { data: file } = await supabase.from("files").select("storage_path").eq("id", fileId).maybeSingle();
-  if (!file) {
-    redirect(`/pedidos/${orderNumber}?error=` + encodeURIComponent("Arquivo não encontrado."));
+  // Download único: a função marca o arquivo como baixado ANTES de liberar o link
+  // e só então o Storage permite ler o arquivo (janela de 60s). Ver migration 013.
+  const { data: path, error } = await supabase.rpc("consume_file_download", {
+    p_file_id: fileId,
+    p_ip: ip ?? "",
+    p_user_agent: userAgent ?? "",
+  });
+  if (error || !path) {
+    voltar("Este arquivo já foi baixado. Se precisar de um novo download, fale com a equipe pelo chat.");
   }
 
-  const { data: signed } = await supabase.storage.from("ecu-files").createSignedUrl(file!.storage_path, 60);
+  const { data: file } = await supabase.from("files").select("original_name").eq("id", fileId).maybeSingle();
+  const { data: signed } = await supabase.storage
+    .from("ecu-files")
+    .createSignedUrl(path as string, 60, { download: file?.original_name ?? true });
   if (!signed?.signedUrl) {
-    redirect(`/pedidos/${orderNumber}?error=` + encodeURIComponent("Não foi possível gerar o link de download."));
+    voltar("Não foi possível gerar o link de download. Fale com a equipe pelo chat para liberar novamente.");
   }
 
   redirect(signed!.signedUrl);

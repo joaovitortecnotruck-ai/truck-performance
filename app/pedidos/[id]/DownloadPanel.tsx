@@ -17,6 +17,7 @@ interface ArquivoOriginalInfo {
 interface ArquivoModificadoInfo {
   id: string;
   nome: string;
+  jaBaixado: boolean;
 }
 
 function DownloadSubmitButton({ disabled }: { disabled: boolean }) {
@@ -62,6 +63,7 @@ export function DownloadPanel({
 
   const termosOk = aceiteLeitura && (!emissionsRelated || aceiteEmissoes);
   const podeBaixar = status !== "cancelado" && status !== "cancelled" && !!arquivoModificado && termosOk;
+  const jaBaixado = !!arquivoModificado?.jaBaixado;
 
   return (
     <section className="rounded-card border border-base-800 bg-base-900 p-5 shadow-card">
@@ -101,23 +103,30 @@ export function DownloadPanel({
               </div>
             </div>
           </div>
-          {arquivoModificado && !termosOk && <Lock className="h-4 w-4 text-ink-500" />}
+          {arquivoModificado && !termosOk && !jaBaixado && <Lock className="h-4 w-4 text-ink-500" />}
         </div>
       </div>
 
-      {arquivoModificado && (
+      {jaBaixado && (
+        <p className="mt-4 rounded-[8px] border border-base-700 bg-base-800 px-3.5 py-2.5 text-[12px] text-ink-300">
+          Você já baixou este arquivo. Cada arquivo pode ser baixado uma única vez — se precisar de
+          um novo download, fale com a equipe pelo chat.
+        </p>
+      )}
+
+      {arquivoModificado && !jaBaixado && (
         <form action={confirmDownload}>
           <input type="hidden" name="orderNumber" value={orderNumber} />
           <input type="hidden" name="orderId" value={orderId} />
           <input type="hidden" name="fileId" value={arquivoModificado.id} />
           <input type="hidden" name="termReadWriteId" value={termReadWriteId} />
           <input type="hidden" name="termEmissionsId" value={termEmissionsId} />
-          <input type="hidden" name="emissionsRelated" value={String(emissionsRelated)} />
 
           <div className="mt-4 flex flex-col gap-3 border-t border-base-800 pt-4">
             <label className="flex items-start gap-2 text-[12px] leading-relaxed text-ink-300">
               <input
                 type="checkbox"
+                name="aceiteLeitura"
                 checked={aceiteLeitura}
                 onChange={(e) => setAceiteLeitura(e.target.checked)}
                 className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded border-base-600 bg-base-800 accent-accent"
@@ -129,6 +138,7 @@ export function DownloadPanel({
               <label className="flex items-start gap-2 text-[12px] leading-relaxed text-ink-300">
                 <input
                   type="checkbox"
+                  name="aceiteEmissoes"
                   checked={aceiteEmissoes}
                   onChange={(e) => setAceiteEmissoes(e.target.checked)}
                   className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded border-base-600 bg-base-800 accent-accent"
@@ -139,7 +149,8 @@ export function DownloadPanel({
 
             <DownloadSubmitButton disabled={!podeBaixar} />
             <p className="text-[11px] text-ink-500">
-              Ao baixar, o aceite dos termos acima fica registrado com data, hora e IP.
+              O download pode ser feito uma única vez. Ao baixar, o aceite dos termos acima fica
+              registrado com data, hora e IP.
             </p>
           </div>
         </form>

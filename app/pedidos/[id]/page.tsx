@@ -7,10 +7,17 @@ import { formatOrderValue } from "@/lib/pricing";
 import { createClient } from "@/lib/supabase/server";
 import { DownloadPanel } from "./DownloadPanel";
 import { OrderChat } from "@/components/OrderChat";
+import { VehicleFiles } from "@/components/VehicleFiles";
 
 export const dynamic = "force-dynamic";
 
-export default async function PedidoDetailPage({ params }: { params: { id: string } }) {
+export default async function PedidoDetailPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams?: { error?: string };
+}) {
   const supabase = createClient();
   const {
     data: { user },
@@ -32,8 +39,10 @@ export default async function PedidoDetailPage({ params }: { params: { id: strin
   if (!order) notFound();
 
   const veiculo = Array.isArray(order.vehicles) ? order.vehicles[0] : order.vehicles;
-  const arquivoOriginal = order.files?.find((f: any) => f.file_type === "original") ?? null;
-  const arquivoModificado = order.files?.find((f: any) => f.file_type === "final") ?? null;
+  // mais recente primeiro: se a equipe reenviar o modificado, vale o último
+  const arquivos = [...(order.files ?? [])].sort((a: any, b: any) => b.created_at.localeCompare(a.created_at));
+  const arquivoOriginal = arquivos.find((f: any) => f.file_type === "original") ?? null;
+  const arquivoModificado = arquivos.find((f: any) => f.file_type === "final") ?? null;
 
   async function signUrl(path: string) {
     const { data } = await supabase.storage.from("ecu-files").createSignedUrl(path, 600);
@@ -61,6 +70,12 @@ export default async function PedidoDetailPage({ params }: { params: { id: strin
 
         <main className="grid grid-cols-1 gap-6 px-8 py-6 xl:grid-cols-[1fr_360px]">
           <div className="flex flex-col gap-6">
+            {searchParams?.error && (
+              <p className="rounded-[8px] border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-[13px] text-red-400">
+                {searchParams.error}
+              </p>
+            )}
+
             <section className="rounded-card border border-base-800 bg-base-900 p-5 shadow-card">
               <div className="flex flex-wrap items-center gap-2">
                 <OrderStatusBadge status={order.status} />
@@ -100,6 +115,14 @@ export default async function PedidoDetailPage({ params }: { params: { id: strin
               <StatusTimeline status={order.status} />
             </section>
 
+            <VehicleFiles
+              vehicle={veiculo}
+              orderNumber={order.order_number}
+              orderId={order.id}
+              clientId={user.id}
+              isAdmin={false}
+            />
+
             <OrderChat
               orderId={order.id}
               clientId={order.client_id}
@@ -118,7 +141,15 @@ export default async function PedidoDetailPage({ params }: { params: { id: strin
               termReadWriteId={termReadWriteId}
               termEmissionsId={termEmissionsId}
               arquivoOriginal={arquivoOriginal ? { nome: arquivoOriginal.original_name, url: urlOriginal } : null}
-              arquivoModificado={arquivoModificado ? { id: arquivoModificado.id, nome: arquivoModificado.original_name } : null}
+              arquivoModificado={
+                arquivoModificado
+                  ? {
+                      id: arquivoModificado.id,
+                      nome: arquivoModificado.original_name,
+                      jaBaixado: arquivoModificado.downloads_used >= arquivoModificado.downloads_allowed,
+                    }
+                  : null
+              }
             />
           </div>
         </main>

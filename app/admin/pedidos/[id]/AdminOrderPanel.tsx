@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 import { Download, Send, UploadCloud, CheckCircle2, Loader2, BadgeCheck, DollarSign, Wallet } from "lucide-react";
 import { clsx } from "clsx";
+import { uploadEcuFile } from "@/lib/upload";
 import { ORDER_STATUS_OPTIONS, PAYMENT_STATUS_OPTIONS } from "@/components/StatusBadge";
 import { updateOrderStatus, uploadModifiedFile, updateOrderPrice, updatePaymentStatus, updateFileMeta } from "./actions";
 
@@ -75,8 +76,7 @@ function FileMetaSubmitButton() {
   );
 }
 
-function UploadSubmitButton({ disabled }: { disabled: boolean }) {
-  const { pending } = useFormStatus();
+function UploadSubmitButton({ disabled, pending }: { disabled: boolean; pending: boolean }) {
   return (
     <button
       type="submit"
@@ -137,6 +137,29 @@ export function AdminOrderPanel({
 }) {
   const [novoArquivo, setNovoArquivo] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [enviando, startEnvio] = useTransition();
+  const [erroEnvio, setErroEnvio] = useState("");
+
+  function handleUpload(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!novoArquivo) return;
+    const fd = new FormData(e.currentTarget);
+    fd.delete("arquivoModificado");
+    setErroEnvio("");
+    startEnvio(async () => {
+      try {
+        const up = await uploadEcuFile(novoArquivo, `${clientId}/${orderId}/final`);
+        fd.set("arquivoPath", up.path);
+        fd.set("arquivoNome", up.name);
+        fd.set("arquivoTamanho", String(up.size));
+        fd.set("arquivoSha256", up.sha256);
+      } catch (err: any) {
+        setErroEnvio(`Falha ao enviar o arquivo: ${err?.message ?? "erro desconhecido"}`);
+        return;
+      }
+      await uploadModifiedFile(fd);
+    });
+  }
 
   return (
     <>
@@ -262,11 +285,10 @@ export function AdminOrderPanel({
         )}
       </section>
 
-      <form action={uploadModifiedFile}>
+      <form onSubmit={handleUpload}>
         <input type="hidden" name="orderNumber" value={orderNumber} />
         <input type="hidden" name="orderId" value={orderId} />
-        <input type="hidden" name="clientId" value={clientId} />
-        <section className="rounded-card border border-base-800 bg-base-900 p-5 shadow-card">
+                <section className="rounded-card border border-base-800 bg-base-900 p-5 shadow-card">
           <h2 className="mb-3 flex items-center gap-1.5 font-display text-sm font-semibold uppercase tracking-wide text-accent">
             Arquivo modificado
             {arquivoModificado && <BadgeCheck className="h-4 w-4 text-ok" />}
@@ -315,7 +337,8 @@ export function AdminOrderPanel({
               />
             </label>
           </div>
-          <UploadSubmitButton disabled={!novoArquivo} />
+          <UploadSubmitButton disabled={!novoArquivo} pending={enviando} />
+          {erroEnvio && <p className="mt-2 text-[12px] text-red-400">{erroEnvio}</p>}
           <p className="mt-2 text-[11px] text-ink-500">
             Ao enviar, o pedido é marcado automaticamente como "Arquivo pronto". O download só é
             liberado ao cliente após o aceite dos termos obrigatórios.

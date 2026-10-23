@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams?: { success?: string };
+  searchParams?: { success?: string; error?: string };
 }) {
   const supabase = createClient();
   const {
@@ -54,6 +54,11 @@ export default async function DashboardPage({
           {searchParams?.success && (
             <p className="mb-6 rounded-[8px] border border-ok/30 bg-ok/10 px-3.5 py-2.5 text-[13px] text-ok">
               {searchParams.success}
+            </p>
+          )}
+          {searchParams?.error && (
+            <p className="mb-6 rounded-[8px] border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-[13px] text-red-400">
+              {searchParams.error}
             </p>
           )}
 

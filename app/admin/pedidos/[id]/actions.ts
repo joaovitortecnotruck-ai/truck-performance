@@ -2,13 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createHash } from "crypto";
 import { createClient } from "@/lib/supabase/server";
-
-async function sha256File(file: File) {
-  const buf = Buffer.from(await file.arrayBuffer());
-  return createHash("sha256").update(buf).digest("hex");
-}
 
 async function logActivity(
   supabase: ReturnType<typeof createClient>,
@@ -105,15 +99,19 @@ export async function updateFileMeta(formData: FormData) {
   redirect(`/admin/pedidos/${orderNumber}?success=` + encodeURIComponent("HW/SW atualizado!"));
 }
 
+// O arquivo já foi enviado direto do navegador para o Storage (ver lib/upload.ts);
+// aqui só registramos os metadados e marcamos o pedido como pronto.
 export async function uploadModifiedFile(formData: FormData) {
   const orderNumber = String(formData.get("orderNumber") ?? "");
   const orderId = String(formData.get("orderId") ?? "");
-  const clientId = String(formData.get("clientId") ?? "");
   const hw = String(formData.get("hw") ?? "").trim();
   const sw = String(formData.get("sw") ?? "").trim();
-  const arquivo = formData.get("arquivoModificado");
+  const path = String(formData.get("arquivoPath") ?? "");
+  const nome = String(formData.get("arquivoNome") ?? "");
+  const tamanho = Number(formData.get("arquivoTamanho") ?? 0);
+  const sha256 = String(formData.get("arquivoSha256") ?? "");
 
-  if (!(arquivo instanceof File) || arquivo.size === 0) {
+  if (!path || !nome) {
     redirect(`/admin/pedidos/${orderNumber}?error=` + encodeURIComponent("Selecione um arquivo."));
   }
 
@@ -123,50 +121,24 @@ export async function uploadModifiedFile(formData: FormData) {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const path = `${clientId}/${orderId}/final/${arquivo.name}`;
-
-  async function tentarUpload() {
-    return supabase.storage
-      .from("ecu-files")
-      .upload(path, arquivo as File, { contentType: (arquivo as File).type || "application/octet-stream", upsert: true });
+  const { error } = await supabase.from("files").insert({
+    order_id: orderId,
+    uploaded_by: user!.id,
+    file_type: "final",
+    original_name: nome,
+    storage_path: path,
+    size_bytes: tamanho,
+    hw: hw || null,
+    sw: sw || null,
+    sha256: sha256 || null,
+  });
+  if (error) {
+    redirect(`/admin/pedidos/${orderNumber}?error=` + encodeURIComponent(`Falha ao registrar o arquivo: ${error.message}`));
   }
-
-  let uploadError: { message: string } | null = null;
-  try {
-    const primeira = await tentarUpload();
-    uploadError = primeira.error;
-    if (uploadError) {
-      // conexão instável: tenta mais uma vez antes de desistir
-      const segunda = await tentarUpload();
-      uploadError = segunda.error;
-    }
-  } catch (e: any) {
-    uploadError = { message: e?.message ?? "erro de rede desconhecido" };
-  }
-
-  if (uploadError) {
-    redirect(
-      `/admin/pedidos/${orderNumber}?error=` +
-        encodeURIComponent(`Falha ao enviar o arquivo: ${uploadError.message}`)
-    );
-  }
-
-  const sha256 = await sha256File(arquivo);
 
   await Promise.all([
-    supabase.from("files").insert({
-      order_id: orderId,
-      uploaded_by: user!.id,
-      file_type: "final",
-      original_name: arquivo.name,
-      storage_path: path,
-      size_bytes: arquivo.size,
-      hw: hw || null,
-      sw: sw || null,
-      sha256,
-    }),
     supabase.from("orders").update({ status: "ready" }).eq("order_number", orderNumber),
-    logActivity(supabase, orderId, user!.id, "arquivo_modificado_enviado", { nome: arquivo.name, sha256 }),
+    logActivity(supabase, orderId, user!.id, "arquivo_modificado_enviado", { nome, sha256 }),
   ]);
 
   revalidatePath(`/admin/pedidos/${orderNumber}`);
@@ -174,4 +146,25 @@ export async function uploadModifiedFile(formData: FormData) {
     `/admin/pedidos/${orderNumber}?success=` +
       encodeURIComponent("Arquivo enviado com sucesso! O pedido foi marcado como \"Arquivo pronto\".")
   );
+}
+
+export async function grantExtraDownload(formData: FormData) {
+  const orderNumber = String(formData.get("orderNumber") ?? "");
+  const orderId = String(formData.get("orderId") ?? "");
+  const fileId = String(formData.get("fileId") ?? "");
+  if (!orderNumber || !fileId) return;
+
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { error } = await supabase.rpc("grant_extra_download", { p_file_id: fileId });
+  if (error) {
+    redirect(`/admin/pedidos/${orderNumber}?error=` + encodeURIComponent(`Não foi possível liberar: ${error.message}`));
+  }
+  await logActivity(supabase, orderId, user?.id, "download_liberado", { fileId });
+
+  revalidatePath(`/admin/pedidos/${orderNumber}`);
+  redirect(`/admin/pedidos/${orderNumber}?success=` + encodeURIComponent("Novo download liberado para o cliente."));
 }

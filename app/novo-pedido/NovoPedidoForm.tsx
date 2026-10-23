@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import { AlertTriangle, Check, FileUp, Info, X } from "lucide-react";
+import { useMemo, useRef, useState, useTransition } from "react";
+import { AlertTriangle, Check, FileUp, Info, Loader2, X } from "lucide-react";
 import { clsx } from "clsx";
 import { createOrder } from "./actions";
+import { createClient } from "@/lib/supabase/client";
+import { uploadEcuFile } from "@/lib/upload";
 
 const METODOS_LEITURA = ["OBD", "BENCH", "BOOT", "JTAG", "OUTRO"];
 
@@ -110,10 +112,37 @@ export function NovoPedidoForm({
     setEmissoesOpcionais((prev) => (prev.includes(id) ? prev.filter((o) => o !== id) : [...prev, id]));
   }
 
-  const podeEnviar = arquivo !== null && declaracao && stage !== "";
+  const [enviando, startEnvio] = useTransition();
+  const [erroEnvio, setErroEnvio] = useState("");
+  const podeEnviar = arquivo !== null && declaracao && stage !== "" && !enviando;
+
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!arquivo) return;
+    const fd = new FormData(e.currentTarget);
+    fd.delete("arquivoOriginal");
+    setErroEnvio("");
+    startEnvio(async () => {
+      try {
+        const {
+          data: { user },
+        } = await createClient().auth.getUser();
+        if (!user) throw new Error("Sessão expirada. Entre novamente.");
+        const up = await uploadEcuFile(arquivo, `${user.id}/uploads`);
+        fd.set("arquivoPath", up.path);
+        fd.set("arquivoNome", up.name);
+        fd.set("arquivoTamanho", String(up.size));
+        fd.set("arquivoSha256", up.sha256);
+      } catch (err: any) {
+        setErroEnvio(`Falha ao enviar o arquivo: ${err?.message ?? "erro desconhecido"}`);
+        return;
+      }
+      await createOrder(fd);
+    });
+  }
 
   return (
-    <form action={createOrder} className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_340px]">
+    <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_340px]">
       <input type="hidden" name="stageCode" value={stage} />
       {todosOpcionais.map((code) => (
         <input key={code} type="hidden" name="opcionais" value={code} />
@@ -381,9 +410,16 @@ export function NovoPedidoForm({
               : "cursor-not-allowed bg-base-800 text-ink-500"
           )}
         >
-          Enviar pedido
+          {enviando ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Enviando arquivo...
+            </>
+          ) : (
+            "Enviar pedido"
+          )}
         </button>
-        {!podeEnviar && (
+        {erroEnvio && <p className="mt-2 text-center text-[12px] text-red-400">{erroEnvio}</p>}
+        {!podeEnviar && !enviando && (
           <p className="mt-2 text-center text-[11px] text-ink-500">
             Anexe o arquivo original e confirme a declaração para enviar.
           </p>

@@ -1,13 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { createHash } from "crypto";
 import { createClient } from "@/lib/supabase/server";
-
-async function sha256File(file: File) {
-  const buf = Buffer.from(await file.arrayBuffer());
-  return createHash("sha256").update(buf).digest("hex");
-}
 
 export async function createOrder(formData: FormData) {
   const supabase = createClient();
@@ -33,7 +27,11 @@ export async function createOrder(formData: FormData) {
   const opcionaisCodes = formData.getAll("opcionais").map(String).filter(Boolean);
   const descricaoServico = String(formData.get("descricaoServico") ?? "").trim();
   const declaracao = formData.get("declaracao");
-  const arquivo = formData.get("arquivoOriginal");
+  // O arquivo já foi enviado direto do navegador para o Storage (ver lib/upload.ts).
+  const arquivoPath = String(formData.get("arquivoPath") ?? "");
+  const arquivoNome = String(formData.get("arquivoNome") ?? "");
+  const arquivoTamanho = Number(formData.get("arquivoTamanho") ?? 0);
+  const arquivoSha256 = String(formData.get("arquivoSha256") ?? "");
   const vehicleId = String(formData.get("vehicleId") ?? "").trim();
 
   if (!marca || !modelo || !placa || !stageCode) {
@@ -45,7 +43,7 @@ export async function createOrder(formData: FormData) {
   if (!declaracao) {
     redirect("/novo-pedido?error=" + encodeURIComponent("Confirme a declaração antes de enviar."));
   }
-  if (!(arquivo instanceof File) || arquivo.size === 0) {
+  if (!arquivoPath.startsWith(`${user!.id}/`) || !arquivoNome || arquivoTamanho <= 0) {
     redirect("/novo-pedido?error=" + encodeURIComponent("Anexe o arquivo original."));
   }
 
@@ -123,28 +121,25 @@ export async function createOrder(formData: FormData) {
     unit_price: s.price,
   }));
 
-  async function enviarArquivoOriginal() {
-    if (!(arquivo instanceof File)) return;
-    const path = `${user!.id}/${order!.id}/original/${arquivo.name}`;
-    const { error: uploadError } = await supabase.storage
-      .from("ecu-files")
-      .upload(path, arquivo, { contentType: arquivo.type || "application/octet-stream" });
+  const [, { error: fileError }] = await Promise.all([
+    supabase.from("order_items").insert(itemsPayload),
+    supabase.from("files").insert({
+      order_id: order!.id,
+      uploaded_by: user!.id,
+      file_type: "original",
+      original_name: arquivoNome,
+      storage_path: arquivoPath,
+      size_bytes: arquivoTamanho,
+      sha256: arquivoSha256 || null,
+    }),
+  ]);
 
-    if (!uploadError) {
-      const sha256 = await sha256File(arquivo);
-      await supabase.from("files").insert({
-        order_id: order!.id,
-        uploaded_by: user!.id,
-        file_type: "original",
-        original_name: arquivo.name,
-        storage_path: path,
-        size_bytes: arquivo.size,
-        sha256,
-      });
-    }
+  if (fileError) {
+    redirect(
+      "/dashboard?error=" +
+        encodeURIComponent(`Pedido ${order!.order_number} criado, mas o arquivo não foi vinculado. Envie pelo chat.`)
+    );
   }
-
-  await Promise.all([supabase.from("order_items").insert(itemsPayload), enviarArquivoOriginal()]);
 
   redirect("/dashboard?success=" + encodeURIComponent(`Pedido ${order!.order_number} criado com sucesso!`));
 }
