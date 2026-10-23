@@ -2,9 +2,10 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Search } from "lucide-react";
+import { Search, Pencil, Trash2 } from "lucide-react";
 import { OrderStatusBadge, ORDER_STATUS_OPTIONS, PaymentStatusBadge } from "@/components/StatusBadge";
 import { formatOrderValue } from "@/lib/pricing";
+import { deleteOrder } from "./actions";
 
 interface PedidoRow {
   id: string;
@@ -82,6 +83,7 @@ export function OrdersTable({ pedidos }: { pedidos: PedidoRow[] }) {
                 <th className="px-5 py-3 font-medium">Valor</th>
                 <th className="px-5 py-3 font-medium">Pagamento</th>
                 <th className="px-5 py-3 font-medium">Status</th>
+                <th className="px-5 py-3 font-medium">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-base-800">
@@ -113,13 +115,41 @@ export function OrdersTable({ pedidos }: { pedidos: PedidoRow[] }) {
                     <td className="px-5 py-3">
                       <OrderStatusBadge status={p.status} />
                     </td>
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-1">
+                        <Link
+                          href={`/admin/pedidos/${p.order_number}`}
+                          title="Editar"
+                          className="flex h-8 w-8 items-center justify-center rounded-[8px] text-ink-500 hover:text-accent"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Link>
+                        <form
+                          action={deleteOrder}
+                          onSubmit={(e) => {
+                            if (!confirm(`Excluir o pedido ${p.order_number} e todos os arquivos/mensagens dele? Essa ação não pode ser desfeita.`)) {
+                              e.preventDefault();
+                            }
+                          }}
+                        >
+                          <input type="hidden" name="orderId" value={p.id} />
+                          <button
+                            type="submit"
+                            title="Excluir"
+                            className="flex h-8 w-8 items-center justify-center rounded-[8px] text-ink-500 hover:text-red-400"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </form>
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
 
               {filtrados.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-5 py-8 text-center text-ink-500">
+                  <td colSpan={10} className="px-5 py-8 text-center text-ink-500">
                     Nenhum pedido encontrado com esses filtros.
                   </td>
                 </tr>
