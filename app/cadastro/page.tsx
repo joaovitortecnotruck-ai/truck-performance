@@ -30,7 +30,7 @@ export default function CadastroPage({
             <Field label="Empresa (opcional)" name="empresa" placeholder="Nome da empresa" className="sm:col-span-2" />
             <Field label="E-mail" name="email" type="email" placeholder="voce@empresa.com" required />
             <Field label="WhatsApp" name="whatsapp" placeholder="(00) 00000-0000" required />
-            <Field label="CPF ou CNPJ (opcional)" name="documento" placeholder="000.000.000-00" />
+            <Field label="CPF ou CNPJ" name="documento" placeholder="000.000.000-00" required />
             <Field label="Telefone (opcional)" name="telefone" placeholder="(00) 00000-0000" />
             <Field label="Cidade (opcional)" name="cidade" placeholder="Sua cidade" />
             <Field label="Estado (opcional)" name="estado" placeholder="UF" />

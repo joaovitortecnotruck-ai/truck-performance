@@ -17,7 +17,7 @@ export async function signup(formData: FormData) {
   const senha2 = String(formData.get("senha2") ?? "");
   const aceite = formData.get("termos");
 
-  if (!nome || !email || !whatsapp || !senha) {
+  if (!nome || !email || !whatsapp || !documento || !senha) {
     redirect("/cadastro?error=" + encodeURIComponent("Preencha todos os campos obrigatórios."));
   }
   if (!aceite) {
