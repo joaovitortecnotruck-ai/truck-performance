@@ -447,7 +447,9 @@ function Field({
 }: React.InputHTMLAttributes<HTMLInputElement> & { label: string }) {
   return (
     <label className="flex flex-col gap-1.5 text-[13px] text-ink-300">
-      {label} {required && <span className="text-accent">*</span>}
+      <span>
+        {label} {required && <span className="text-accent">*</span>}
+      </span>
       <input
         {...props}
         required={required}
