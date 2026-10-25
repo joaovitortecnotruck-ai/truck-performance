@@ -33,16 +33,16 @@ export default async function BancoDeArquivosPage() {
   );
 
   return (
-    <div className="flex min-h-screen bg-base-950">
+    <div className="flex min-h-screen flex-col bg-base-950 lg:flex-row">
       <Sidebar variant="admin" />
-      <div className="flex-1">
+      <div className="min-w-0 flex-1">
         <Topbar
           title="Banco de arquivos"
           subtitle="Busca por arquivo, cliente, veículo, ECU, HW e SW."
           userName={nomeExibido}
           notificationSlot={<NotificationBell />}
         />
-        <main className="px-8 py-6">
+        <main className="px-4 py-6 sm:px-8">
           <FilesTable arquivos={linhas} />
         </main>
       </div>

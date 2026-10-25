@@ -44,13 +44,13 @@ export default async function DashboardPage({
   const valorTotal = meusPedidos.reduce((sum, o) => sum + Number(o.total_price), 0);
 
   return (
-    <div className="flex min-h-screen bg-base-950">
+    <div className="flex min-h-screen flex-col bg-base-950 lg:flex-row">
       <Sidebar variant="cliente" />
 
-      <div className="flex-1">
+      <div className="min-w-0 flex-1">
         <Topbar title="Dashboard" subtitle="Acompanhe seus pedidos e arquivos." userName={nomeExibido} />
 
-        <main className="px-8 py-6">
+        <main className="px-4 py-6 sm:px-8">
           {searchParams?.success && (
             <p className="mb-6 rounded-[8px] border border-ok/30 bg-ok/10 px-3.5 py-2.5 text-[13px] text-ok">
               {searchParams.success}

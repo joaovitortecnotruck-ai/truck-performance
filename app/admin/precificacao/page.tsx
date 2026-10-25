@@ -24,16 +24,16 @@ export default async function PrecificacaoPage() {
     .order("sort_order");
 
   return (
-    <div className="flex min-h-screen bg-base-950">
+    <div className="flex min-h-screen flex-col bg-base-950 lg:flex-row">
       <Sidebar variant="admin" />
-      <div className="flex-1">
+      <div className="min-w-0 flex-1">
         <Topbar
           title="Precificação"
           subtitle="Gerencie os valores de Stages e opcionais."
           userName={nomeExibido}
           notificationSlot={<NotificationBell />}
         />
-        <main className="px-8 py-6">
+        <main className="px-4 py-6 sm:px-8">
           <PricingTable services={services ?? []} />
         </main>
       </div>

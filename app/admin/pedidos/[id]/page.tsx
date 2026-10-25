@@ -85,9 +85,9 @@ export default async function AdminPedidoDetailPage({
     .order("accepted_at", { ascending: false });
 
   return (
-    <div className="flex min-h-screen bg-base-950">
+    <div className="flex min-h-screen flex-col bg-base-950 lg:flex-row">
       <Sidebar variant="admin" />
-      <div className="flex-1">
+      <div className="min-w-0 flex-1">
         <Topbar
           title={order.order_number}
           subtitle="Tela administrativa do pedido"
@@ -95,7 +95,7 @@ export default async function AdminPedidoDetailPage({
           notificationSlot={<NotificationBell />}
         />
 
-        <main className="grid grid-cols-1 gap-6 px-8 py-6 xl:grid-cols-[1fr_380px]">
+        <main className="grid grid-cols-1 gap-6 px-4 py-6 sm:px-8 xl:grid-cols-[1fr_380px]">
           <div className="flex flex-col gap-6">
             {searchParams?.success && (
               <p className="rounded-[8px] border border-ok/30 bg-ok/10 px-3.5 py-2.5 text-[13px] text-ok">

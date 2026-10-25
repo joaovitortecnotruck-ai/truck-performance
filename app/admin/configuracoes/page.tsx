@@ -33,16 +33,16 @@ export default async function ConfiguracoesPage() {
     .order("created_at", { ascending: false });
 
   return (
-    <div className="flex min-h-screen bg-base-950">
+    <div className="flex min-h-screen flex-col bg-base-950 lg:flex-row">
       <Sidebar variant="admin" />
-      <div className="flex-1">
+      <div className="min-w-0 flex-1">
         <Topbar
           title="Configurações"
           subtitle="Preferências da plataforma e da conta administrativa."
           userName={nomeExibido}
           notificationSlot={<NotificationBell />}
         />
-        <main className="px-8 py-6">
+        <main className="px-4 py-6 sm:px-8">
           <section className="rounded-card border border-base-800 bg-base-900 shadow-card">
             <div className="flex items-center gap-2 border-b border-base-800 px-5 py-4">
               <Users className="h-4 w-4 text-accent" />

@@ -59,9 +59,9 @@ export default async function AdminDashboardPage() {
   const recentes = todosPedidos.slice(0, 10);
 
   return (
-    <div className="flex min-h-screen bg-base-950">
+    <div className="flex min-h-screen flex-col bg-base-950 lg:flex-row">
       <Sidebar variant="admin" />
-      <div className="flex-1">
+      <div className="min-w-0 flex-1">
         <Topbar
           title="Painel administrativo"
           subtitle="Visão geral dos pedidos e faturamento."
@@ -69,7 +69,7 @@ export default async function AdminDashboardPage() {
           notificationSlot={<NotificationBell />}
         />
 
-        <main className="px-8 py-6">
+        <main className="px-4 py-6 sm:px-8">
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <StatCard label="Pedidos novos" value={novos.length} icon={ClipboardList} />
             <StatCard label="Em andamento" value={emAndamento.length} icon={Clock} tone="accent" />

@@ -63,12 +63,12 @@ export default async function PedidoDetailPage({
     .order("created_at", { ascending: true });
 
   return (
-    <div className="flex min-h-screen bg-base-950">
+    <div className="flex min-h-screen flex-col bg-base-950 lg:flex-row">
       <Sidebar variant="cliente" />
-      <div className="flex-1">
+      <div className="min-w-0 flex-1">
         <Topbar title={order.order_number} subtitle="Detalhes do pedido" userName={nomeExibido} />
 
-        <main className="grid grid-cols-1 gap-6 px-8 py-6 xl:grid-cols-[1fr_360px]">
+        <main className="grid grid-cols-1 gap-6 px-4 py-6 sm:px-8 xl:grid-cols-[1fr_360px]">
           <div className="flex flex-col gap-6">
             {searchParams?.error && (
               <p className="rounded-[8px] border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-[13px] text-red-400">
