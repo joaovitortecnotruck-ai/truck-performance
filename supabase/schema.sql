@@ -1,6 +1,6 @@
 -- ============================================================================
 -- Truck Performance — schema do banco (Supabase), extraído do banco real em 2026-10-25.
--- Já inclui as migrations 013, 014 e 015. Serve de referência / para recriar o projeto
+-- Já inclui as migrations 013 a 016. Serve de referência / para recriar o projeto
 -- do zero no SQL Editor. Mudanças novas: crie supabase/migration_0XX_*.sql e atualize aqui.
 -- ============================================================================
 
