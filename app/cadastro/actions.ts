@@ -37,7 +37,14 @@ export async function signup(formData: FormData) {
   const { data, error } = await supabase.auth.signUp({ email, password: senha });
 
   if (error) {
-    redirect("/cadastro?error=" + encodeURIComponent(error.message));
+    const msg = error.message.toLowerCase();
+    let friendly = error.message;
+    if (msg.includes("weak") || msg.includes("pwned") || msg.includes("easy to guess")) {
+      friendly = "Essa senha é muito fraca ou já vazou em algum lugar. Escolha uma senha diferente, misturando letras, números e símbolos.";
+    } else if (msg.includes("already registered") || msg.includes("already exists")) {
+      friendly = "Já existe uma conta com esse e-mail. Tente entrar ou recuperar a senha.";
+    }
+    redirect("/cadastro?error=" + encodeURIComponent(friendly));
   }
 
   if (!data.user) {
