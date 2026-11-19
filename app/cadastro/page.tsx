@@ -53,7 +53,8 @@ export default function CadastroPage({
 
             <button
               type="submit"
-              className="mt-2 flex h-11 items-center justify-center rounded-[8px] bg-accent text-sm font-semibold text-white transition-colors hover:bg-accent-600 sm:col-span-2"
+              data-turnstile-gate
+              className="mt-2 flex h-11 items-center justify-center rounded-[8px] bg-accent text-sm font-semibold text-white transition-colors hover:bg-accent-600 disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2"
             >
               Criar conta
             </button>
